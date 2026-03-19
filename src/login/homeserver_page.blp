@@ -72,6 +72,7 @@ template $LoginHomeserverPage: Adw.NavigationPage {
                 ]
 
                 Adw.EntryRow homeserver_entry {
+                  sensitive: bind $invert_boolean(template.is-loading) as <bool>;
                   selectable: false;
                   changed => $update_next_state() swapped;
                   entry-activated => $check_homeserver() swapped;
@@ -100,6 +101,7 @@ template $LoginHomeserverPage: Adw.NavigationPage {
             }
 
             $LoadingButton next_button {
+              is-loading: bind template.is-loading;
               content-label: _("Next");
               halign: center;
               clicked => $check_homeserver() swapped;
@@ -112,11 +114,12 @@ template $LoginHomeserverPage: Adw.NavigationPage {
             }
 
             Gtk.Button {
+              sensitive: bind $invert_boolean(template.is-loading) as <bool>;
               can-shrink: true;
               halign: center;
               // Translators: As in 'Advanced Settings'.
               label: _("Advanced…");
-              action-name: "login.open-advanced";
+              clicked => $open_advanced_dialog() swapped;
             }
           };
         };

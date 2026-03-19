@@ -35,6 +35,8 @@ mod single_item_list_model;
 pub(crate) mod sourceview;
 pub(crate) mod string;
 mod template_callbacks;
+#[cfg(test)]
+pub(crate) mod tests;
 pub(crate) mod toast;
 
 pub(crate) use self::{
@@ -851,5 +853,58 @@ where
 
     fn into_future(self) -> Self::IntoFuture {
         Box::pin(async move { self.0.await.unwrap_or_default() })
+    }
+}
+
+/// A helper type to broadcast a value to multiple listeners.
+///
+/// This API is similar to using signals with `glib::Object`s, but it does not
+/// require to convert the value to a `glib::Value`. It does however require the
+/// value to implement `Clone`.
+///
+/// All listeners are dropped when the broadcaster is dropped.
+#[derive(Debug)]
+pub(crate) struct Broadcaster<T: Clone>(
+    // The main purpose of this API is to abstract the inner type to be able to change it depending
+    // on the evolution of our dependency tree without requiring to change lots of code.
+    //
+    // eyeball is already in our dependency tree with the matrix-sdk crates. Another viable option
+    // would be async-broadcast, used by zbus.
+    //
+    // We need to use an `Option<T>` because an observable always needs a value.
+    eyeball::SharedObservable<Option<T>>,
+);
+
+impl<T: Clone + 'static> Broadcaster<T> {
+    /// Send the given value to all the listeners.
+    pub(crate) fn send(&self, value: T) {
+        self.0.set(Some(value));
+    }
+
+    /// Listen to new values and call the given callback.
+    pub(crate) fn connect<F>(&self, callback: F)
+    where
+        F: Fn(T) + 'static,
+    {
+        let mut receiver = self.0.subscribe();
+        crate::spawn!(async move {
+            // Listen to values in a loop.
+            loop {
+                let Some(inner) = receiver.next().await else {
+                    // The observable was dropped.
+                    break;
+                };
+
+                if let Some(value) = inner {
+                    callback(value);
+                }
+            }
+        });
+    }
+}
+
+impl<T: Clone> Default for Broadcaster<T> {
+    fn default() -> Self {
+        Self(Default::default())
     }
 }

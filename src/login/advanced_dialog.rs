@@ -4,20 +4,29 @@ use gtk::glib;
 use crate::utils::OneshotNotifier;
 
 mod imp {
-    use std::cell::{Cell, OnceCell};
+    use std::cell::Cell;
 
     use glib::subclass::InitializingObject;
 
     use super::*;
 
-    #[derive(Debug, Default, gtk::CompositeTemplate, glib::Properties)]
+    #[derive(Debug, gtk::CompositeTemplate, glib::Properties)]
     #[template(resource = "/org/gnome/Fractal/ui/login/advanced_dialog.ui")]
     #[properties(wrapper_type = super::LoginAdvancedDialog)]
     pub struct LoginAdvancedDialog {
         /// Whether auto-discovery is enabled.
         #[property(get, set, default = true)]
         autodiscovery: Cell<bool>,
-        notifier: OnceCell<OneshotNotifier>,
+        notifier: OneshotNotifier,
+    }
+
+    impl Default for LoginAdvancedDialog {
+        fn default() -> Self {
+            Self {
+                autodiscovery: Cell::new(true),
+                notifier: OneshotNotifier::new("LoginAdvancedDialog"),
+            }
+        }
     }
 
     #[glib::object_subclass]
@@ -42,26 +51,18 @@ mod imp {
 
     impl AdwDialogImpl for LoginAdvancedDialog {
         fn closed(&self) {
-            if let Some(notifier) = self.notifier.get() {
-                notifier.notify();
-            }
+            self.notifier.notify();
         }
     }
 
     impl PreferencesDialogImpl for LoginAdvancedDialog {}
 
     impl LoginAdvancedDialog {
-        /// Get the notifier for the close signal.
-        fn notifier(&self) -> &OneshotNotifier {
-            self.notifier
-                .get_or_init(|| OneshotNotifier::new("LoginAdvancedDialog"))
-        }
-
         /// Present this dialog.
         ///
         /// Returns when the dialog is closed.
         pub(super) async fn run_future(&self, parent: &gtk::Widget) {
-            let receiver = self.notifier().listen();
+            let receiver = self.notifier.listen();
 
             self.obj().present(Some(parent));
             receiver.await;
@@ -86,5 +87,19 @@ impl LoginAdvancedDialog {
     /// Returns when the dialog is closed.
     pub(crate) async fn run_future(&self, parent: &impl IsA<gtk::Widget>) {
         self.imp().run_future(parent.upcast_ref()).await;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::LoginAdvancedDialog;
+    use crate::utils::tests::load_gresources;
+
+    #[gtk::test]
+    fn construct() {
+        // Check that the GObject is constructed successfully, i.e. the template file is
+        // found and correct.
+        load_gresources();
+        LoginAdvancedDialog::new();
     }
 }

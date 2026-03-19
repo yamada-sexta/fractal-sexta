@@ -1,27 +1,25 @@
 use adw::{prelude::*, subclass::prelude::*};
 use gettextrs::gettext;
-use gtk::{glib, glib::clone};
-use matrix_sdk::{
-    Client, ClientBuildError, ClientBuilder, config::RequestConfig, sanitize_server_name,
-};
-use tracing::warn;
+use gtk::glib;
+use matrix_sdk::sanitize_server_name;
+use ruma::OwnedServerName;
 use url::Url;
 
-use super::Login;
+use super::advanced_dialog::LoginAdvancedDialog;
 use crate::{
     components::{LoadingButton, OfflineBanner},
     gettext_f,
-    prelude::*,
-    spawn_tokio, toast,
-    utils::BoundObjectWeakRef,
+    utils::{Broadcaster, TemplateCallbacks},
 };
 
 mod imp {
+    use std::cell::Cell;
+
     use glib::subclass::InitializingObject;
 
     use super::*;
 
-    #[derive(Debug, Default, gtk::CompositeTemplate, glib::Properties)]
+    #[derive(Debug, gtk::CompositeTemplate, glib::Properties)]
     #[template(resource = "/org/gnome/Fractal/ui/login/homeserver_page.ui")]
     #[properties(wrapper_type = super::LoginHomeserverPage)]
     pub struct LoginHomeserverPage {
@@ -31,9 +29,27 @@ mod imp {
         homeserver_help: TemplateChild<gtk::Label>,
         #[template_child]
         next_button: TemplateChild<LoadingButton>,
-        /// The parent `Login` object.
-        #[property(get, set = Self::set_login, explicit_notify, nullable)]
-        login: BoundObjectWeakRef<Login>,
+        /// Whether auto-discovery is enabled.
+        #[property(get, set = Self::set_autodiscovery, explicit_notify, default = true)]
+        autodiscovery: Cell<bool>,
+        /// Whether this page is in its loading state.
+        #[property(get, set = Self::set_is_loading, explicit_notify)]
+        is_loading: Cell<bool>,
+        /// Sender for the homeserver data.
+        pub(super) homeserver_data_sender: Broadcaster<HomeserverData>,
+    }
+
+    impl Default for LoginHomeserverPage {
+        fn default() -> Self {
+            Self {
+                homeserver_entry: Default::default(),
+                homeserver_help: Default::default(),
+                next_button: Default::default(),
+                autodiscovery: Cell::new(true),
+                is_loading: Cell::new(false),
+                homeserver_data_sender: Default::default(),
+            }
+        }
     }
 
     #[glib::object_subclass]
@@ -47,6 +63,7 @@ mod imp {
 
             Self::bind_template(klass);
             Self::bind_template_callbacks(klass);
+            TemplateCallbacks::bind_template_callbacks(klass);
         }
 
         fn instance_init(obj: &InitializingObject<Self>) {
@@ -55,7 +72,12 @@ mod imp {
     }
 
     #[glib::derived_properties]
-    impl ObjectImpl for LoginHomeserverPage {}
+    impl ObjectImpl for LoginHomeserverPage {
+        fn constructed(&self) {
+            self.parent_constructed();
+            self.update_text();
+        }
+    }
 
     impl WidgetImpl for LoginHomeserverPage {
         fn grab_focus(&self) -> bool {
@@ -71,34 +93,33 @@ mod imp {
 
     #[gtk::template_callbacks]
     impl LoginHomeserverPage {
-        /// Set the parent `Login` object.
-        fn set_login(&self, login: Option<&Login>) {
-            self.login.disconnect_signals();
-
-            if let Some(login) = login {
-                let handler = login.connect_autodiscovery_notify(clone!(
-                    #[weak(rename_to = imp)]
-                    self,
-                    move |_| {
-                        imp.update_next_state();
-                        imp.update_text();
-                    }
-                ));
-
-                self.login.set(login, vec![handler]);
+        /// Set whether auto-discovery is enabled.
+        fn set_autodiscovery(&self, autodiscovery: bool) {
+            if self.autodiscovery.get() == autodiscovery {
+                return;
             }
 
-            self.update_next_state();
+            self.autodiscovery.set(autodiscovery);
+
             self.update_text();
+            self.update_next_state();
+            self.obj().notify_autodiscovery();
+        }
+
+        /// Set the loading state of this page.
+        fn set_is_loading(&self, loading: bool) {
+            if self.is_loading.get() == loading {
+                return;
+            }
+
+            self.is_loading.set(loading);
+
+            self.obj().notify_is_loading();
         }
 
         /// Update the text of this page according to the current settings.
         fn update_text(&self) {
-            let Some(login) = self.login.obj() else {
-                return;
-            };
-
-            if login.autodiscovery() {
+            if self.autodiscovery.get() {
                 self.homeserver_entry.set_title(&gettext("Domain Name"));
                 self.homeserver_help.set_markup(&gettext(
                     "The domain of your Matrix homeserver, for example gnome.org",
@@ -117,165 +138,56 @@ mod imp {
             }
         }
 
-        /// Reset this page.
-        pub(super) fn clean(&self) {
-            self.homeserver_entry.set_text("");
-            self.next_button.set_is_loading(false);
-            self.update_next_state();
+        /// The data to use to reach the homeserver.
+        ///
+        /// Returns `None` if the value in the entry is invalid.
+        fn homeserver_data(&self) -> Option<HomeserverData> {
+            HomeserverData::parse(&self.homeserver_entry.text(), self.autodiscovery.get())
         }
 
-        /// The current text from the homeserver entry.
-        pub(super) fn homeserver(&self) -> glib::GString {
-            self.homeserver_entry.text()
-        }
+        /// Open the advanced dialog.
+        #[template_callback]
+        async fn open_advanced_dialog(&self) {
+            let obj = self.obj();
+            let dialog = LoginAdvancedDialog::new();
 
-        /// Whether the current state allows to go to the next step.
-        fn can_go_next(&self) -> bool {
-            let Some(login) = self.login.obj() else {
-                return false;
-            };
-            let homeserver = self.homeserver();
+            obj.bind_property("autodiscovery", &dialog, "autodiscovery")
+                .sync_create()
+                .bidirectional()
+                .build();
 
-            if login.autodiscovery() {
-                sanitize_server_name(homeserver.as_str()).is_ok()
-            } else {
-                Url::parse(homeserver.as_str()).is_ok()
-            }
+            dialog.run_future(&*obj).await;
         }
 
         /// Update the state of the "Next" button.
         #[template_callback]
         fn update_next_state(&self) {
-            self.next_button.set_sensitive(self.can_go_next());
+            self.next_button
+                .set_sensitive(self.homeserver_data().is_some());
         }
 
-        /// Check if the homeserver that was entered is valid.
+        /// Initiate the homeserver validation to proceed to the next step.
         #[template_callback]
-        async fn check_homeserver(&self) {
-            if !self.can_go_next() {
-                return;
-            }
-
-            let Some(login) = self.login.obj() else {
+        fn check_homeserver(&self) {
+            let Some(data) = self.homeserver_data() else {
                 return;
             };
 
-            self.next_button.set_is_loading(true);
-            login.freeze();
-
-            let autodiscovery = login.autodiscovery();
-            let res = self.build_client(autodiscovery).await;
-
-            match res {
-                Ok(client) => {
-                    login.set_client(Some(client.clone()));
-                    self.discover_login_api(client).await;
-                }
-                Err(error) => {
-                    self.abort_on_error(&error.to_user_facing());
-                }
-            }
-
-            self.next_button.set_is_loading(false);
-            login.unfreeze();
+            self.set_is_loading(true);
+            self.homeserver_data_sender.send(data);
         }
 
-        /// Try to build a client with the current homeserver.
-        pub(super) async fn build_client(
-            &self,
-            autodiscovery: bool,
-        ) -> Result<Client, ClientBuildError> {
-            if autodiscovery {
-                self.build_client_with_autodiscovery().await
-            } else {
-                self.build_client_with_url().await
-            }
-        }
-
-        /// Try to build a client by using homeserver autodiscovery.
-        async fn build_client_with_autodiscovery(&self) -> Result<Client, ClientBuildError> {
-            let homeserver = self.homeserver();
-            let handle = spawn_tokio!(async move {
-                Self::client_builder()
-                    .server_name_or_homeserver_url(homeserver)
-                    .build()
-                    .await
-            });
-
-            match handle.await.expect("task was not aborted") {
-                Ok(client) => Ok(client),
-                Err(error) => {
-                    warn!("Could not discover homeserver: {error}");
-                    Err(error)
-                }
-            }
-        }
-
-        /// Try to build a client by using the homeserver's URL.
-        async fn build_client_with_url(&self) -> Result<Client, ClientBuildError> {
-            let homeserver = self.homeserver();
-            spawn_tokio!(async move {
-                let client = Self::client_builder()
-                    .respect_login_well_known(false)
-                    .homeserver_url(homeserver)
-                    .build()
-                    .await?;
-
-                // Call the `GET /versions` endpoint to make sure that the URL belongs to a
-                // Matrix homeserver.
-                client.server_versions().await?;
-
-                Ok(client)
-            })
-            .await
-            .expect("task was not aborted")
-        }
-
-        /// Discover the login API supported by the homeserver.
-        async fn discover_login_api(&self, client: Client) {
-            let Some(login) = self.login.obj() else {
-                return;
-            };
-
-            // Check if the server supports the OAuth 2.0 API.
-            let oauth = client.oauth();
-            let handle = spawn_tokio!(async move { oauth.server_metadata().await });
-
-            match handle.await.expect("task was not aborted") {
-                Ok(_) => {
-                    login.init_oauth_login().await;
-                }
-                Err(error) => {
-                    if error.is_not_supported() {
-                        // Fallback to the Matrix native API.
-                        login.init_matrix_login().await;
-                    } else {
-                        warn!("Could not get authorization server metadata: {error}");
-                        self.abort_on_error(&gettext("Could not set up login"));
-                    }
-                }
-            }
-        }
-
-        /// Construct a [`ClientBuilder`] with the proper configuration.
-        fn client_builder() -> ClientBuilder {
-            Client::builder().request_config(RequestConfig::new().retry_limit(2))
-        }
-
-        /// Show the given error and abort the current login.
-        fn abort_on_error(&self, error: &str) {
-            toast!(self.obj(), error);
-
-            // Drop the client because it is bound to the homeserver.
-            if let Some(login) = self.login.obj() {
-                login.drop_client();
-            }
+        /// Reset this page.
+        pub(super) fn reset(&self) {
+            self.homeserver_entry.set_text("");
+            self.set_is_loading(false);
+            self.set_autodiscovery(true);
         }
     }
 }
 
 glib::wrapper! {
-    /// The login page to provide the homeserver and login settings.
+    /// The login page to provide the homeserver settings.
     pub struct LoginHomeserverPage(ObjectSubclass<imp::LoginHomeserverPage>)
         @extends gtk::Widget, adw::NavigationPage,
         @implements gtk::Accessible, gtk::Buildable, gtk::ConstraintTarget;
@@ -289,21 +201,71 @@ impl LoginHomeserverPage {
         glib::Object::new()
     }
 
-    /// The current text from the homeserver entry.
-    pub(super) fn homeserver(&self) -> glib::GString {
-        self.imp().homeserver()
+    /// Connect to changes of the homeserver data.
+    pub(super) fn connect_homeserver_data<F>(&self, callback: F)
+    where
+        F: Fn(HomeserverData) + 'static,
+    {
+        self.imp().homeserver_data_sender.connect(callback);
     }
 
     /// Reset this page.
-    pub(super) fn clean(&self) {
-        self.imp().clean();
+    pub(super) fn reset(&self) {
+        self.imp().reset();
+    }
+}
+
+/// The data to use to reach the homeserver.
+#[derive(Debug, Clone)]
+pub(super) enum HomeserverData {
+    /// The server name to use for auto-discovery.
+    ServerName(OwnedServerName),
+
+    /// The URL of the homeserver.
+    ///
+    /// This means that auto-discovery is disabled.
+    Url(Url),
+}
+
+impl HomeserverData {
+    /// Try to construct an `HomeserverData` with the given string and
+    /// auto-discovery setting.
+    fn parse(s: &str, autodiscovery: bool) -> Option<Self> {
+        if autodiscovery {
+            sanitize_server_name(s).ok().map(Self::ServerName)
+        } else {
+            Url::parse(s).ok().map(Self::Url)
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::assert_matches;
+
+    use super::{HomeserverData, LoginHomeserverPage};
+    use crate::utils::tests::load_gresources;
+
+    #[gtk::test]
+    fn construct() {
+        // Check that the GObject is constructed successfully, i.e. the template file is
+        // valid.
+        load_gresources();
+        LoginHomeserverPage::new();
     }
 
-    /// Try to build a client with the current homeserver.
-    pub(super) async fn build_client(
-        &self,
-        autodiscovery: bool,
-    ) -> Result<Client, ClientBuildError> {
-        self.imp().build_client(autodiscovery).await
+    #[test]
+    fn parse_homeserver_data() {
+        assert_matches!(HomeserverData::parse("", true), None);
+        assert_matches!(HomeserverData::parse("", false), None);
+
+        assert_matches!(HomeserverData::parse("gnome", true), Some(_));
+        assert_matches!(HomeserverData::parse("gnome", false), None);
+
+        assert_matches!(HomeserverData::parse("gnome.org", true), Some(_));
+        assert_matches!(HomeserverData::parse("gnome.org", false), None);
+
+        assert_matches!(HomeserverData::parse("https://gnome.org", true), Some(_));
+        assert_matches!(HomeserverData::parse("https://gnome.org", false), Some(_));
     }
 }

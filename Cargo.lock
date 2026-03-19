@@ -1138,6 +1138,7 @@ dependencies = [
  "ashpd",
  "blurhash",
  "cfg-if",
+ "eyeball",
  "futures-channel",
  "futures-util",
  "geo-uri",

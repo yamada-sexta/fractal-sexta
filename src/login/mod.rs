@@ -1,15 +1,16 @@
 use std::net::{Ipv4Addr, Ipv6Addr};
 
 use adw::{prelude::*, subclass::prelude::*};
+use as_variant::as_variant;
 use gettextrs::gettext;
 use gtk::{gio, glib, glib::clone};
 use matrix_sdk::{
-    Client,
+    Client, ClientBuildError,
     authentication::oauth::{
         ClientRegistrationData,
         registration::{ApplicationType, ClientMetadata, Localized, OAuthGrantType},
     },
-    sanitize_server_name,
+    config::RequestConfig,
     utils::local_server::LocalServerRedirectHandle,
 };
 use ruma::{OwnedServerName, api::client::session::get_login_types::v3::LoginType, serde::Raw};
@@ -25,9 +26,8 @@ mod method_page;
 mod session_setup_view;
 
 use self::{
-    advanced_dialog::LoginAdvancedDialog,
     greeter::Greeter,
-    homeserver_page::LoginHomeserverPage,
+    homeserver_page::{HomeserverData, LoginHomeserverPage},
     in_browser_page::{LoginInBrowserData, LoginInBrowserPage},
     local_server::spawn_local_server,
     method_page::LoginMethodPage,
@@ -36,7 +36,7 @@ use self::{
 use crate::{
     APP_HOMEPAGE_URL, APP_NAME, Application, RUNTIME, SETTINGS_KEY_CURRENT_SESSION, Window,
     components::OfflineBanner, prelude::*, secret::Secret, session::Session, spawn, spawn_tokio,
-    toast,
+    toast, utils::AbortableHandle,
 };
 
 /// A page of the login stack.
@@ -86,7 +86,7 @@ impl LoginPage {
 }
 
 mod imp {
-    use std::cell::{Cell, RefCell};
+    use std::cell::RefCell;
 
     use glib::subclass::InitializingObject;
 
@@ -108,13 +108,14 @@ mod imp {
         in_browser_page: TemplateChild<LoginInBrowserPage>,
         #[template_child]
         done_button: TemplateChild<gtk::Button>,
-        /// Whether auto-discovery is enabled.
-        #[property(get, set = Self::set_autodiscovery, construct, explicit_notify, default = true)]
-        autodiscovery: Cell<bool>,
+        /// The data to use to reach the homeserver.
+        homeserver_data: RefCell<Option<HomeserverData>>,
         /// The Matrix client used to log in.
         client: RefCell<Option<Client>>,
         /// The session that was just logged in.
         session: RefCell<Option<Session>>,
+        /// An abort handle for the ongoing action.
+        abort_handle: AbortableHandle,
     }
 
     #[glib::object_subclass]
@@ -133,11 +134,16 @@ mod imp {
             klass.set_accessible_role(gtk::AccessibleRole::Group);
 
             klass.install_action_async("login.sso", None, |obj, _, _| async move {
-                obj.imp().init_matrix_sso_login().await;
-            });
+                let imp = obj.imp();
 
-            klass.install_action_async("login.open-advanced", None, |obj, _, _| async move {
-                obj.imp().open_advanced_dialog().await;
+                let Some(client) = imp.client().await else {
+                    toast!(obj, gettext("Could not set up login"));
+                    return;
+                };
+
+                if imp.init_matrix_sso_login(client).await.is_err() {
+                    toast!(obj, gettext("Could not set up login"));
+                }
             });
         }
 
@@ -167,6 +173,17 @@ mod imp {
                 self,
                 move |_| {
                     imp.visible_page_changed();
+                }
+            ));
+
+            self.homeserver_page.connect_homeserver_data(clone!(
+                #[weak(rename_to = imp)]
+                self,
+                move |data| {
+                    spawn!(async move {
+                        imp.check_homeserver_data(data).await;
+                        imp.homeserver_page.set_is_loading(false);
+                    });
                 }
             ));
         }
@@ -213,16 +230,6 @@ mod imp {
             )
         }
 
-        /// Set whether auto-discovery is enabled.
-        pub fn set_autodiscovery(&self, autodiscovery: bool) {
-            if self.autodiscovery.get() == autodiscovery {
-                return;
-            }
-
-            self.autodiscovery.set(autodiscovery);
-            self.obj().notify_autodiscovery();
-        }
-
         /// Get the session setup view, if any.
         pub(super) fn session_setup(&self) -> Option<SessionSetupView> {
             self.navigation
@@ -232,10 +239,12 @@ mod imp {
 
         /// The visible page changed.
         fn visible_page_changed(&self) {
+            // Abort the ongoing task, if any. There should not be any ongoing task while we
+            // are going forward, so if a task is aborted it means that we are going
+            // backward.
+            self.abort_handle.abort();
+
             match self.visible_page() {
-                LoginPage::Greeter => {
-                    self.clean();
-                }
                 LoginPage::Homeserver => {
                     // Drop the client because it is bound to the homeserver.
                     self.drop_client();
@@ -251,6 +260,57 @@ mod imp {
             }
         }
 
+        /// Try to build a client with the current homeserver.
+        ///
+        /// Returns `Ok(None)` if the task was aborted.
+        async fn build_client(&self) -> Result<Option<Client>, ClientBuildError> {
+            let Some(homeserver_data) = self.homeserver_data.borrow().clone() else {
+                return Err(ClientBuildError::MissingHomeserver);
+            };
+
+            let handle = spawn_tokio!(async move {
+                let mut builder =
+                    Client::builder().request_config(RequestConfig::new().retry_limit(2));
+                let mut check_homeserver_manually = false;
+
+                match homeserver_data {
+                    HomeserverData::ServerName(server_name) => {
+                        builder = builder.server_name_or_homeserver_url(server_name);
+                    }
+                    HomeserverData::Url(url) => {
+                        builder = builder.respect_login_well_known(false).homeserver_url(url);
+                        check_homeserver_manually = true;
+                    }
+                }
+
+                let client = builder.build().await?;
+
+                if check_homeserver_manually {
+                    // Call the `GET /versions` endpoint to make sure that the URL belongs to a
+                    // Matrix homeserver.
+                    client.server_versions().await?;
+                }
+
+                Ok(client)
+            });
+
+            let Some(result) = self.abort_handle.await_task(handle).await else {
+                // The task was aborted.
+                return Ok(None);
+            };
+
+            match result {
+                Ok(client) => {
+                    self.client.replace(Some(client.clone()));
+                    Ok(Some(client))
+                }
+                Err(error) => {
+                    warn!("Could not discover homeserver: {error}");
+                    Err(error)
+                }
+            }
+        }
+
         /// The Matrix client.
         pub(super) async fn client(&self) -> Option<Client> {
             if let Some(client) = self.client.borrow().clone() {
@@ -258,20 +318,11 @@ mod imp {
             }
 
             // If the client was dropped, try to recreate it.
-            let autodiscovery = self.autodiscovery.get();
-            let client = self.homeserver_page.build_client(autodiscovery).await.ok();
-            self.set_client(client.clone());
-
-            client
-        }
-
-        /// Set the Matrix client.
-        pub(super) fn set_client(&self, client: Option<Client>) {
-            self.client.replace(client);
+            self.build_client().await.ok().flatten()
         }
 
         /// Drop the Matrix client.
-        pub(super) fn drop_client(&self) {
+        fn drop_client(&self) {
             if let Some(client) = self.client.take() {
                 // The `Client` needs to access a tokio runtime when it is dropped.
                 let _guard = RUNTIME.enter();
@@ -288,25 +339,75 @@ mod imp {
             }
         }
 
-        /// Open the login advanced dialog.
-        async fn open_advanced_dialog(&self) {
-            let obj = self.obj();
-            let dialog = LoginAdvancedDialog::new();
-            obj.bind_property("autodiscovery", &dialog, "autodiscovery")
-                .sync_create()
-                .bidirectional()
-                .build();
-            dialog.run_future(&*obj).await;
+        /// Spawn a local server for listening to redirects.
+        ///
+        /// Returns `Ok(None)` if the task was aborted.
+        async fn spawn_local_server(&self) -> Result<Option<(Url, LocalServerRedirectHandle)>, ()> {
+            let handle = spawn_tokio!(async move { spawn_local_server().await });
+
+            let Some(result) = self.abort_handle.await_task(handle).await else {
+                // The task was aborted.
+                return Ok(None);
+            };
+
+            result.map(Some)
+        }
+
+        /// Check if the homeserver data that was entered by the user allows us
+        /// to log in.
+        async fn check_homeserver_data(&self, homeserver_data: HomeserverData) {
+            self.homeserver_data.replace(Some(homeserver_data));
+
+            let client = match self.build_client().await {
+                Ok(Some(client)) => client,
+                Ok(None) => {
+                    // The task was aborted.
+                    return;
+                }
+                Err(error) => {
+                    toast!(self.obj(), error.to_user_facing());
+                    return;
+                }
+            };
+
+            if self.discover_login_api(client).await.is_err() {
+                toast!(self.obj(), gettext("Could not set up login"));
+            }
+        }
+
+        /// Discover the login API supported by the homeserver.
+        async fn discover_login_api(&self, client: Client) -> Result<(), ()> {
+            // First, check if the server supports the OAuth 2.0 API.
+            let oauth = client.oauth();
+            let handle = spawn_tokio!(async move { oauth.server_metadata().await });
+
+            let Some(result) = self.abort_handle.await_task(handle).await else {
+                // The task was aborted.
+                return Ok(());
+            };
+
+            match result {
+                Ok(_) => {
+                    // Prefer the OAuth 2.0 API.
+                    self.init_oauth_login(client).await
+                }
+                Err(error) => {
+                    if error.is_not_supported() {
+                        // Fallback to the Matrix native API.
+                        self.init_matrix_login(client).await
+                    } else {
+                        warn!("Could not get authorization server metadata: {error}");
+                        Err(())
+                    }
+                }
+            }
         }
 
         /// Prepare to log in via the OAuth 2.0 API.
-        pub(super) async fn init_oauth_login(&self) {
-            let Some(client) = self.client.borrow().clone() else {
-                return;
-            };
-
-            let Ok((redirect_uri, local_server_handle)) = spawn_local_server().await else {
-                return;
+        async fn init_oauth_login(&self, client: Client) -> Result<(), ()> {
+            let Some((redirect_uri, local_server_handle)) = self.spawn_local_server().await? else {
+                // The task was aborted.
+                return Ok(());
             };
 
             let oauth = client.oauth();
@@ -317,12 +418,16 @@ mod imp {
                     .await
             });
 
-            let authorization_data = match handle.await.expect("task was not aborted") {
+            let Some(result) = self.abort_handle.await_task(handle).await else {
+                // The task was aborted.
+                return Ok(());
+            };
+
+            let authorization_data = match result {
                 Ok(authorization_data) => authorization_data,
                 Err(error) => {
                     warn!("Could not construct OAuth 2.0 authorization URL: {error}");
-                    toast!(self.obj(), gettext("Could not set up login"));
-                    return;
+                    return Err(());
                 }
             };
 
@@ -330,23 +435,25 @@ mod imp {
                 local_server_handle,
                 LoginInBrowserData::Oauth(authorization_data),
             );
+
+            Ok(())
         }
 
         /// Prepare to log in via the Matrix native API.
-        pub(super) async fn init_matrix_login(&self) {
-            let Some(client) = self.client.borrow().clone() else {
-                return;
-            };
-
+        async fn init_matrix_login(&self, client: Client) -> Result<(), ()> {
             let matrix_auth = client.matrix_auth();
             let handle = spawn_tokio!(async move { matrix_auth.get_login_types().await });
 
-            let login_types = match handle.await.expect("task was not aborted") {
+            let Some(result) = self.abort_handle.await_task(handle).await else {
+                // The task was aborted.
+                return Ok(());
+            };
+
+            let login_types = match result {
                 Ok(response) => response.flows,
                 Err(error) => {
                     warn!("Could not get available Matrix login types: {error}");
-                    toast!(self.obj(), gettext("Could not set up login"));
-                    return;
+                    return Err(());
                 }
             };
 
@@ -359,25 +466,24 @@ mod imp {
 
             if supports_password {
                 let server_name = self
-                    .autodiscovery
-                    .get()
-                    .then(|| self.homeserver_page.homeserver())
-                    .and_then(|s| sanitize_server_name(&s).ok());
+                    .homeserver_data
+                    .borrow()
+                    .as_ref()
+                    .and_then(|data| as_variant!(data, HomeserverData::ServerName))
+                    .cloned();
 
                 self.show_method_page(&client.homeserver(), server_name.as_ref(), supports_sso);
+                Ok(())
             } else {
-                self.init_matrix_sso_login().await;
+                self.init_matrix_sso_login(client).await
             }
         }
 
         /// Prepare to log in via the Matrix SSO API.
-        pub(super) async fn init_matrix_sso_login(&self) {
-            let Some(client) = self.client.borrow().clone() else {
-                return;
-            };
-
-            let Ok((redirect_uri, local_server_handle)) = spawn_local_server().await else {
-                return;
+        async fn init_matrix_sso_login(&self, client: Client) -> Result<(), ()> {
+            let Some((redirect_uri, local_server_handle)) = self.spawn_local_server().await? else {
+                // The task was aborted.
+                return Ok(());
             };
 
             let matrix_auth = client.matrix_auth();
@@ -387,14 +493,20 @@ mod imp {
                     .await
             });
 
-            match handle.await.expect("task was not aborted") {
+            let Some(result) = self.abort_handle.await_task(handle).await else {
+                // The task was aborted.
+                return Ok(());
+            };
+
+            match result {
                 Ok(url) => {
                     let url = Url::parse(&url).expect("Matrix SSO URL should be a valid URL");
                     self.show_in_browser_page(local_server_handle, LoginInBrowserData::Matrix(url));
+                    Ok(())
                 }
                 Err(error) => {
                     warn!("Could not build Matrix SSO URL: {error}");
-                    toast!(self.obj(), gettext("Could not set up login"));
+                    Err(())
                 }
             }
         }
@@ -487,11 +599,10 @@ mod imp {
         /// Reset the login stack.
         pub(super) fn clean(&self) {
             // Clean pages.
-            self.homeserver_page.clean();
+            self.homeserver_page.reset();
             self.method_page.clean();
 
             // Clean data.
-            self.set_autodiscovery(true);
             self.drop_client();
             self.drop_session();
 
@@ -524,19 +635,9 @@ impl Login {
         glib::Object::new()
     }
 
-    /// Set the Matrix client.
-    fn set_client(&self, client: Option<Client>) {
-        self.imp().set_client(client);
-    }
-
     /// The Matrix client.
     async fn client(&self) -> Option<Client> {
         self.imp().client().await
-    }
-
-    /// Drop the Matrix client.
-    fn drop_client(&self) {
-        self.imp().drop_client();
     }
 
     /// Freeze the login screen.
@@ -547,16 +648,6 @@ impl Login {
     /// Unfreeze the login screen.
     fn unfreeze(&self) {
         self.imp().unfreeze();
-    }
-
-    /// Prepare to log in via the OAuth 2.0 API.
-    async fn init_oauth_login(&self) {
-        self.imp().init_oauth_login().await;
-    }
-
-    /// Prepare to log in via the Matrix native API.
-    async fn init_matrix_login(&self) {
-        self.imp().init_matrix_login().await;
     }
 
     /// Create the session after a successful login.

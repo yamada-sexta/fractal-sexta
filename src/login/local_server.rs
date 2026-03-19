@@ -6,24 +6,22 @@ use matrix_sdk::utils::local_server::{
 use tracing::error;
 use url::Url;
 
-use crate::{APP_NAME, spawn_tokio};
+use crate::APP_NAME;
 
 /// The HTML template for the landing page.
 const LOCAL_SERVER_LANDING_PAGE_TEMPLATE: &str = include_str!("local_server_landing_page.html");
 
 /// Spawn a local server for listening to redirects.
+///
+/// Needs to be called from a tokio task.
 pub(super) async fn spawn_local_server() -> Result<(Url, LocalServerRedirectHandle), ()> {
-    spawn_tokio!(async move {
-        LocalServerBuilder::new()
-            .response(local_server_landing_page())
-            .spawn()
-            .await
-    })
-    .await
-    .expect("task was not aborted")
-    .map_err(|error| {
-        error!("Could not spawn local server: {error}");
-    })
+    LocalServerBuilder::new()
+        .response(local_server_landing_page())
+        .spawn()
+        .await
+        .map_err(|error| {
+            error!("Could not spawn local server: {error}");
+        })
 }
 
 /// The landing page, after the user performed the authentication and is
@@ -88,18 +86,15 @@ fn svg_icon() -> String {
 
 #[cfg(test)]
 mod tests {
-    use gtk::gio;
     use matrix_sdk::utils::local_server::LocalServerResponse;
     use strass::assert_let;
 
     use super::local_server_landing_page;
-    use crate::config::tests::BUILD_DIR;
+    use crate::utils::tests::load_gresources;
 
     #[gtk::test]
     fn generate_local_server_landing_page() {
-        let resources_file = format!("{BUILD_DIR}/data/resources/resources.gresource");
-        let res = gio::Resource::load(resources_file).expect("Could not load gresource file");
-        gio::resources_register(&res);
+        load_gresources();
 
         // Check that the variables were all replaced.
         assert_let!(LocalServerResponse::Html(html) = local_server_landing_page());
