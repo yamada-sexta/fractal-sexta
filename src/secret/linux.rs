@@ -1,17 +1,16 @@
 //! Linux API to store the data of a session, using the Secret Service or Secret
 //! portal.
 
-use std::collections::HashMap;
+use std::{collections::HashMap, str::FromStr};
 
 use gettextrs::gettext;
 use matrix_sdk::authentication::oauth::ClientId;
-use oo7::{Item, Keyring};
-use ruma::UserId;
+use oo7::{AsAttributes, Item, Keyring, Secret};
+use ruma::{OwnedDeviceId, OwnedUserId};
 use serde::Deserialize;
-use thiserror::Error;
-use tokio::fs;
 use tracing::{debug, error, info};
 use url::Url;
+use zeroize::Zeroizing;
 
 use super::{SecretError, SecretExt, SessionTokens, StoredSession};
 use crate::{APP_ID, PROFILE, gettext_f, prelude::*, spawn_tokio, utils::matrix};
@@ -62,7 +61,7 @@ impl SecretExt for LinuxSecret {
     }
 
     async fn store_session(session: StoredSession) -> Result<(), SecretError> {
-        let handle = spawn_tokio!(async move { store_session_inner(session).await });
+        let handle = spawn_tokio!(async move { session.store().await });
         match handle.await.expect("task was not aborted") {
             Ok(()) => Ok(()),
             Err(error) => {
@@ -72,11 +71,11 @@ impl SecretExt for LinuxSecret {
         }
     }
 
-    async fn delete_session(session: &StoredSession) {
-        let attributes = session.attributes();
+    async fn delete_session(session: StoredSession) {
+        let (attributes, _) = session.into_parts();
 
         spawn_tokio!(async move {
-            if let Err(error) = delete_item_with_attributes(&attributes).await {
+            if let Err(error) = attributes.delete_matching_item().await {
                 error!("Could not delete session data from secret backend: {error}");
             }
         })
@@ -85,7 +84,7 @@ impl SecretExt for LinuxSecret {
     }
 }
 
-async fn restore_sessions_inner() -> Result<Vec<StoredSession>, oo7::Error> {
+async fn restore_sessions_inner() -> Result<Vec<StoredSession>, Box<oo7::Error>> {
     let keyring = Keyring::new().await?;
 
     keyring.unlock().await?;
@@ -103,53 +102,9 @@ async fn restore_sessions_inner() -> Result<Vec<StoredSession>, oo7::Error> {
         item.unlock().await?;
 
         match StoredSession::try_from_secret_item(item).await {
-            Ok(session) => sessions.push(session),
-            Err(LinuxSecretError::OldVersion {
-                version,
-                mut session,
-                item,
-                access_token,
-            }) => {
-                if version < MIN_SUPPORTED_VERSION {
-                    info!(
-                        "Found old session for user {} with version {version} that is no longer supported, removing…",
-                        session.user_id
-                    );
-
-                    // Try to log it out.
-                    if let Some(access_token) = access_token {
-                        log_out_session(session.clone(), access_token).await;
-                    }
-
-                    // Delete the session from the secret backend.
-                    LinuxSecret::delete_session(&session).await;
-
-                    // Delete the session data folders.
-                    spawn_tokio!(async move {
-                        if let Err(error) = fs::remove_dir_all(session.data_path()).await {
-                            error!("Could not remove session database: {error}");
-                        }
-
-                        if let Err(error) = fs::remove_dir_all(session.cache_path()).await {
-                            error!("Could not remove session cache: {error}");
-                        }
-                    })
-                    .await
-                    .expect("task was not aborted");
-
-                    continue;
-                }
-
-                info!(
-                    "Found session {} for user {} with old version {}, applying migrations…",
-                    session.id, session.user_id, version,
-                );
-                session.apply_migrations(version, item, access_token).await;
-
-                sessions.push(session);
-            }
-            Err(LinuxSecretError::Field(LinuxSecretFieldError::Invalid)) => {
-                // We already log the specific errors for this.
+            Ok(Some(session)) => sessions.push(session),
+            Ok(None) => {
+                // The session is invalid, we cannot do anything with it.
             }
             Err(error) => {
                 error!("Could not restore previous session: secret error: {error}");
@@ -160,162 +115,109 @@ async fn restore_sessions_inner() -> Result<Vec<StoredSession>, oo7::Error> {
     Ok(sessions)
 }
 
-async fn store_session_inner(session: StoredSession) -> Result<(), oo7::Error> {
-    let keyring = Keyring::new().await?;
-
-    let attributes = session.attributes();
-    let secret = oo7::Secret::text(session.passphrase);
-
-    keyring
-        .create_item(
-            &gettext_f(
-                // Translators: Do NOT translate the content between '{' and '}', this is a
-                // variable name.
-                "Fractal: Matrix credentials for {user_id}",
-                &[("user_id", session.user_id.as_str())],
-            ),
-            &attributes,
-            secret,
-            true,
-        )
-        .await?;
-
-    Ok(())
-}
-
-/// Create a client and log out the given session.
-async fn log_out_session(session: StoredSession, access_token: String) {
-    debug!("Logging out session");
-
-    let tokens = SessionTokens {
-        access_token,
-        refresh_token: None,
-    };
-
-    spawn_tokio!(async move {
-        match matrix::client_with_stored_session(session, tokens).await {
-            Ok(client) => {
-                if let Err(error) = client.logout().await {
-                    error!("Could not log out session: {error}");
-                }
-            }
-            Err(error) => {
-                error!("Could not build client to log out session: {error}");
-            }
-        }
-    })
-    .await
-    .expect("task was not aborted");
-}
-
 impl StoredSession {
-    /// Build self from an item.
-    async fn try_from_secret_item(item: Item) -> Result<Self, LinuxSecretError> {
-        let attributes = item.attributes().await?;
-
-        let version = parse_attribute(&attributes, keys::VERSION, str::parse::<u8>)?;
-        if version > CURRENT_VERSION {
-            return Err(LinuxSecretError::UnsupportedVersion(version));
-        }
-
-        let homeserver = parse_attribute(&attributes, keys::HOMESERVER, Url::parse)?;
-        let user_id = parse_attribute(&attributes, keys::USER, |s| UserId::parse(s))?;
-        let device_id = get_attribute(&attributes, keys::DEVICE_ID)?.as_str().into();
-        let id = get_attribute(&attributes, keys::ID)?.clone();
-
-        let client_id = attributes.get(keys::CLIENT_ID).cloned().map(ClientId::new);
-
-        let (passphrase, access_token) = match item.secret().await {
-            Ok(secret) => {
-                if version <= 6 {
-                    let secret_data = match serde_json::from_slice::<V4SecretData>(&secret) {
-                        Ok(secret) => secret,
-                        Err(error) => {
-                            error!("Could not parse secret in stored session: {error:?}");
-                            return Err(LinuxSecretFieldError::Invalid.into());
-                        }
-                    };
-
-                    (secret_data.passphrase, Some(secret_data.access_token))
-                } else {
-                    // Even if we store the secret as plain text, the file backend always returns a
-                    // blob so let's always treat it as a byte slice.
-                    match String::from_utf8(secret.as_bytes().to_owned()) {
-                        Ok(passphrase) => (passphrase.clone(), None),
-                        Err(error) => {
-                            error!("Could not get secret in stored session: {error}");
-                            return Err(LinuxSecretFieldError::Invalid.into());
-                        }
-                    }
-                }
-            }
-            Err(error) => {
-                error!("Could not get secret in stored session: {error}");
-                return Err(LinuxSecretFieldError::Invalid.into());
-            }
-        };
-
-        let session = Self {
+    /// Construct a `StoredSession` from its attributes and passphrase.
+    fn from_parts(attributes: Attributes, passphrase: Zeroizing<String>) -> Self {
+        let Attributes {
+            version: _,
             homeserver,
             user_id,
             device_id,
             id,
             client_id,
-            passphrase: passphrase.into(),
-        };
+        } = attributes;
 
-        if version < CURRENT_VERSION {
-            Err(LinuxSecretError::OldVersion {
-                version,
-                session,
-                item,
-                access_token,
-            })
-        } else {
-            Ok(session)
+        Self {
+            homeserver,
+            user_id,
+            device_id,
+            id,
+            client_id,
+            passphrase,
         }
     }
 
-    /// Get the attributes from `self`.
-    fn attributes(&self) -> HashMap<&'static str, String> {
-        let mut attributes = HashMap::from([
-            (keys::HOMESERVER, self.homeserver.to_string()),
-            (keys::USER, self.user_id.to_string()),
-            (keys::DEVICE_ID, self.device_id.to_string()),
-            (keys::ID, self.id.clone()),
-            (keys::VERSION, CURRENT_VERSION.to_string()),
-            (keys::PROFILE, PROFILE.to_string()),
-            (keys::XDG_SCHEMA, APP_ID.to_owned()),
-        ]);
+    /// Split this stored session between its attributes and passphrase.
+    fn into_parts(self) -> (Attributes, Zeroizing<String>) {
+        let Self {
+            homeserver,
+            user_id,
+            device_id,
+            id,
+            client_id,
+            passphrase,
+        } = self;
 
-        if let Some(client_id) = &self.client_id {
-            attributes.insert(keys::CLIENT_ID, client_id.as_str().to_owned());
+        (
+            Attributes {
+                version: CURRENT_VERSION,
+                homeserver,
+                user_id,
+                device_id,
+                id,
+                client_id,
+            },
+            passphrase,
+        )
+    }
+
+    /// Try to construct a `StoredSession` from an item from the secret backend.
+    ///
+    /// Returns `Err` if a problem occurred with the secret backend, `Ok(None)`
+    /// if the item is not a valid stored session, and `Ok(Some(_))` if it is a
+    /// valid stored session.
+    async fn try_from_secret_item(item: Item) -> Result<Option<Self>, Box<oo7::Error>> {
+        let Some(attributes) = Attributes::try_from_stored_map(item.attributes().await?) else {
+            return Ok(None);
+        };
+
+        let version = attributes.version;
+
+        let Some(SecretData {
+            passphrase,
+            access_token,
+        }) = SecretData::try_from_secret(version, &item.secret().await?)
+        else {
+            return Ok(None);
+        };
+
+        let session = Self::from_parts(attributes, passphrase.into());
+
+        if version < MIN_SUPPORTED_VERSION {
+            session.delete_unsupported(version, access_token).await;
+            return Ok(None);
         }
 
-        attributes
+        if version < CURRENT_VERSION {
+            session.apply_migrations(version, item, access_token).await;
+        }
+
+        Ok(Some(session))
     }
 
     /// Migrate this session to the current version.
-    async fn apply_migrations(
-        &mut self,
-        from_version: u8,
-        item: Item,
-        access_token: Option<String>,
-    ) {
+    ///
+    /// Any error that occurs is logged.
+    async fn apply_migrations(&self, from_version: u8, item: Item, access_token: Option<String>) {
+        info!(
+            "Found session {} for user {} with old version {from_version}, applying migrations…",
+            self.id, self.user_id,
+        );
+
         if from_version < 7 {
             // Version 7 moves the access token to a separate file. Only the passphrase is
             // stored as the secret now.
             info!("Migrating to version 7…");
 
-            let new_attributes = self.attributes();
-            let new_secret = oo7::Secret::text(&self.passphrase);
+            let (attributes, passphrase) = self.clone().into_parts();
+            let secret = oo7::Secret::text(passphrase);
 
             spawn_tokio!(async move {
-                if let Err(error) = item.set_secret(new_secret).await {
+                if let Err(error) = item.set_secret(secret).await {
                     error!("Could not store updated session secret: {error}");
                 }
 
-                if let Err(error) = item.set_attributes(&new_attributes).await {
+                if let Err(error) = item.set_attributes(&attributes).await {
                     error!("Could not store updated session attributes: {error}");
                 }
             })
@@ -331,116 +233,254 @@ impl StoredSession {
             }
         }
     }
+
+    /// Store this session in the secret backend.
+    async fn store(self) -> Result<(), Box<oo7::Error>> {
+        let keyring = Keyring::new().await?;
+
+        let (attributes, passphrase) = self.into_parts();
+        let secret = oo7::Secret::text(passphrase);
+
+        keyring
+            .create_item(
+                &gettext_f(
+                    // Translators: Do NOT translate the content between '{' and '}', this is a
+                    // variable name.
+                    "Fractal: Matrix credentials for {user_id}",
+                    &[("user_id", attributes.user_id.as_str())],
+                ),
+                &attributes,
+                secret,
+                true,
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// Delete this unsupported session and all its data.
+    async fn delete_unsupported(self, version: u8, access_token: Option<String>) {
+        info!(
+            "Found stored session {} for Matrix user {} with version {version} that is no longer supported, removing…",
+            self.id, self.user_id
+        );
+
+        // Try to log it out.
+        if let Some(access_token) = access_token {
+            debug!("Logging out stored session {}…", self.id);
+
+            let session = self.clone();
+            let tokens = SessionTokens {
+                access_token,
+                refresh_token: None,
+            };
+
+            spawn_tokio!(async move {
+                match matrix::client_with_stored_session(session, tokens).await {
+                    Ok(client) => {
+                        if let Err(error) = client.logout().await {
+                            error!("Could not log out session: {error}");
+                        }
+                    }
+                    Err(error) => {
+                        error!("Could not build client to log out session: {error}");
+                    }
+                }
+            })
+            .await
+            .expect("task was not aborted");
+        }
+
+        self.delete().await;
+    }
 }
 
-/// Secret data that was stored in the secret backend from versions 4 through 6.
+/// The attributes stored in the secret backend.
+struct Attributes {
+    /// The version of the stored session.
+    version: u8,
+
+    /// The URL of the homeserver where the account lives.
+    homeserver: Url,
+
+    /// The unique identifier of the user.
+    user_id: OwnedUserId,
+
+    /// The unique identifier of the session on the homeserver.
+    device_id: OwnedDeviceId,
+
+    /// The unique local identifier of the session.
+    ///
+    /// This is the name of the directories where the session data lives.
+    id: String,
+
+    /// The unique identifier of the client with the homeserver.
+    client_id: Option<ClientId>,
+}
+
+impl Attributes {
+    /// Try to extract the attributes from the given map.
+    ///
+    /// Returns `None` if the attributes could not be extracted from the map.
+    fn try_from_stored_map(mut attributes: HashMap<String, String>) -> Option<Self> {
+        // Return early if the version is unsupported.
+        let version = Self::extract_required_attribute_as(&mut attributes, keys::VERSION)?;
+        if version > CURRENT_VERSION {
+            error!("Could not restore stored session: unsupported version {version}");
+            return None;
+        }
+
+        // Extract the required attributes.
+        let homeserver = Self::extract_required_attribute_as(&mut attributes, keys::HOMESERVER)?;
+        let user_id = Self::extract_required_attribute_as(&mut attributes, keys::USER)?;
+        let device_id = Self::extract_required_attribute(&mut attributes, keys::DEVICE_ID)?.into();
+        let id = Self::extract_required_attribute(&mut attributes, keys::ID)?;
+
+        // Extract the optional attribute.
+        let client_id = attributes.remove(keys::CLIENT_ID).map(ClientId::new);
+
+        Some(Self {
+            version,
+            homeserver,
+            user_id,
+            device_id,
+            id,
+            client_id,
+        })
+    }
+
+    /// Extract the required attribute with the given key in the given map.
+    ///
+    /// Returns `None` if the attribute was not found and logs an error.
+    fn extract_required_attribute(
+        attributes: &mut HashMap<String, String>,
+        key: &str,
+    ) -> Option<String> {
+        if let Some(attribute) = attributes.remove(key) {
+            Some(attribute)
+        } else {
+            error!("Could not restore stored session: could not find `{key}` attribute");
+            None
+        }
+    }
+
+    /// Extract the required attribute with the given key in the given map, an
+    /// try to parse it as `T`.
+    ///
+    /// Returns `None` if the attribute was not found or could not be parsed and
+    /// logs an error.
+    fn extract_required_attribute_as<T>(
+        attributes: &mut HashMap<String, String>,
+        key: &'static str,
+    ) -> Option<T>
+    where
+        T: FromStr,
+        T::Err: std::fmt::Display,
+    {
+        let string = Self::extract_required_attribute(attributes, key)?;
+
+        match T::from_str(&string) {
+            Ok(value) => Some(value),
+            Err(error) => {
+                error!(
+                    "Could not restore stored session: could not parse `{key}` attribute: {error}"
+                );
+                None
+            }
+        }
+    }
+
+    /// Remove the item matching this attributes from the secret backend.
+    ///
+    /// Returns an error if a problem occurs with the secret backend.
+    async fn delete_matching_item(&self) -> Result<(), Box<oo7::Error>> {
+        let keyring = Keyring::new().await?;
+        keyring.delete(self).await?;
+
+        Ok(())
+    }
+}
+
+impl AsAttributes for Attributes {
+    fn as_attributes(&self) -> HashMap<String, String> {
+        let Self {
+            version,
+            homeserver,
+            user_id,
+            device_id,
+            id,
+            client_id,
+        } = self;
+
+        let mut attributes = HashMap::from([
+            (keys::HOMESERVER.to_owned(), homeserver.to_string()),
+            (keys::USER.to_owned(), user_id.to_string()),
+            (keys::DEVICE_ID.to_owned(), device_id.to_string()),
+            (keys::ID.to_owned(), id.clone()),
+            (keys::VERSION.to_owned(), version.to_string()),
+            (keys::PROFILE.to_owned(), PROFILE.to_string()),
+            (keys::XDG_SCHEMA.to_owned(), APP_ID.to_owned()),
+        ]);
+
+        if let Some(client_id) = &client_id {
+            attributes.insert(keys::CLIENT_ID.to_owned(), client_id.as_str().to_owned());
+        }
+
+        attributes
+    }
+}
+
+/// Secret data that is stored in the secret backend.
 #[derive(Clone, Deserialize)]
-struct V4SecretData {
-    /// The access token to provide to the homeserver for authentication.
-    access_token: String,
+struct SecretData {
     /// The passphrase used to encrypt the local databases.
     passphrase: String,
+
+    /// The access token to provide to the homeserver for authentication.
+    ///
+    /// This is only stored in the secret backend until version 6.
+    access_token: Option<String>,
 }
 
-/// Get the attribute with the given key in the given map.
-fn get_attribute<'a>(
-    attributes: &'a HashMap<String, String>,
-    key: &'static str,
-) -> Result<&'a String, LinuxSecretFieldError> {
-    attributes
-        .get(key)
-        .ok_or(LinuxSecretFieldError::Missing(key))
-}
+impl SecretData {
+    /// Try to extract the secret data for the given version from the given
+    /// secret.
+    ///
+    /// Returns `None` if the secret data is invalid.
+    fn try_from_secret(version: u8, secret: &Secret) -> Option<Self> {
+        // Even if we store the secret as plain text, the file backend always returns a
+        // blob so let's always treat it as bytes.
+        let bytes = secret.as_bytes();
 
-/// Parse the attribute with the given key, using the given parsing function in
-/// the given map.
-fn parse_attribute<F, V, E>(
-    attributes: &HashMap<String, String>,
-    key: &'static str,
-    parse: F,
-) -> Result<V, LinuxSecretFieldError>
-where
-    F: FnOnce(&str) -> Result<V, E>,
-    E: std::fmt::Display,
-{
-    let string = get_attribute(attributes, key)?;
-    match parse(string) {
-        Ok(value) => Ok(value),
-        Err(error) => {
-            error!("Could not parse {key} in stored session: {error}");
-            Err(LinuxSecretFieldError::Invalid)
+        if version <= 6 {
+            let secret_data = serde_json::from_slice::<Self>(bytes)
+                .inspect_err(|error| {
+                    error!("Could not parse secret in stored session: {error}");
+                })
+                .ok()?;
+
+            if secret_data.access_token.is_none() {
+                error!("Could not parse secret in stored session: missing `access_token` field");
+                return None;
+            }
+
+            Some(secret_data)
+        } else {
+            String::from_utf8(bytes.to_owned())
+                .inspect_err(|error| {
+                    error!("Could not parse secret in stored session: {error}");
+                })
+                .ok()
+                .map(|passphrase| Self {
+                    passphrase,
+                    access_token: None,
+                })
         }
     }
 }
 
-/// Any error that can happen when retrieving an attribute from the secret
-/// backends on Linux.
-#[derive(Debug, Error)]
-enum LinuxSecretFieldError {
-    /// An attribute is missing.
-    ///
-    /// This should only happen if for some reason we get an item from a
-    /// different application.
-    #[error("Could not find {0} in stored session")]
-    Missing(&'static str),
-
-    /// An invalid attribute was found.
-    ///
-    /// This should only happen if for some reason we get an item from a
-    /// different application.
-    #[error("Invalid field in stored session")]
-    Invalid,
-}
-
-/// Remove the item with the given attributes from the secret backend.
-async fn delete_item_with_attributes(
-    attributes: &impl oo7::AsAttributes,
-) -> Result<(), oo7::Error> {
-    let keyring = Keyring::new().await?;
-    keyring.delete(attributes).await?;
-
-    Ok(())
-}
-
-/// Any error that can happen when interacting with the secret backends on
-/// Linux.
-#[derive(Debug, Error)]
-// Complains about StoredSession in OldVersion, but we need it.
-#[allow(clippy::large_enum_variant)]
-enum LinuxSecretError {
-    /// A session with an unsupported version was found.
-    #[error("Session found with unsupported version {0}")]
-    UnsupportedVersion(u8),
-
-    /// A session with an old version was found.
-    #[error("Session found with old version")]
-    OldVersion {
-        /// The version that was found.
-        version: u8,
-        /// The session that was found.
-        session: StoredSession,
-        /// The item for the session.
-        item: Item,
-        /// The access token that was found.
-        ///
-        /// It needs to be stored outside of the secret backend now.
-        access_token: Option<String>,
-    },
-
-    /// An error occurred while retrieving a field of the session.
-    ///
-    /// This should only happen if for some reason we get an item from a
-    /// different application.
-    #[error(transparent)]
-    Field(#[from] LinuxSecretFieldError),
-
-    /// An error occurred while interacting with the secret backend.
-    #[error(transparent)]
-    Oo7(#[from] oo7::Error),
-}
-
-impl From<oo7::Error> for SecretError {
-    fn from(value: oo7::Error) -> Self {
+impl From<Box<oo7::Error>> for SecretError {
+    fn from(value: Box<oo7::Error>) -> Self {
         Self::Service(value.to_user_facing())
     }
 }

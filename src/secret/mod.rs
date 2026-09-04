@@ -51,7 +51,7 @@ pub(crate) trait SecretExt {
     async fn store_session(session: StoredSession) -> Result<(), SecretError>;
 
     /// Delete the given session from the secret backend.
-    async fn delete_session(session: &StoredSession);
+    async fn delete_session(session: StoredSession);
 }
 
 /// The fallback `Secret` API, to use on platforms where it is unimplemented.
@@ -71,7 +71,7 @@ mod unimplemented {
             unimplemented!()
         }
 
-        async fn delete_session(session: &StoredSession) {
+        async fn delete_session(session: StoredSession) {
             unimplemented!()
         }
     }
@@ -213,13 +213,16 @@ impl StoredSession {
             self.id, self.user_id,
         );
 
-        Secret::delete_session(&self).await;
+        let data_path = self.data_path();
+        let cache_path = self.cache_path();
+
+        Secret::delete_session(self).await;
 
         spawn_tokio!(async move {
-            if let Err(error) = fs::remove_dir_all(self.data_path()).await {
+            if let Err(error) = fs::remove_dir_all(data_path).await {
                 error!("Could not remove session database: {error}");
             }
-            if let Err(error) = fs::remove_dir_all(self.cache_path()).await {
+            if let Err(error) = fs::remove_dir_all(cache_path).await {
                 error!("Could not remove session cache: {error}");
             }
         })
