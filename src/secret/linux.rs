@@ -1,7 +1,7 @@
 //! Linux API to store the data of a session, using the Secret Service or Secret
 //! portal.
 
-use std::{collections::HashMap, path::Path};
+use std::collections::HashMap;
 
 use gettextrs::gettext;
 use matrix_sdk::authentication::oauth::ClientId;
@@ -13,15 +13,18 @@ use tokio::fs;
 use tracing::{debug, error, info};
 use url::Url;
 
-use super::{SESSION_ID_LENGTH, SecretError, SecretExt, SessionTokens, StoredSession};
+use super::{SecretError, SecretExt, SessionTokens, StoredSession};
 use crate::{APP_ID, PROFILE, gettext_f, prelude::*, spawn_tokio, utils::matrix};
 
 /// The current version of the stored session.
 const CURRENT_VERSION: u8 = 7;
 /// The minimum supported version for the stored sessions.
 ///
-/// Currently, this matches the version when Fractal 5 was released.
-const MIN_SUPPORTED_VERSION: u8 = 4;
+/// The history of supported versions is:
+///
+/// - 6: released with Fractal 9 on Oct 30, 2024.
+/// - 7: released with Fractal 11 on May 1, 2025.
+const MIN_SUPPORTED_VERSION: u8 = 6;
 
 /// Keys used in the Linux secret backend.
 mod keys {
@@ -37,8 +40,6 @@ mod keys {
     pub(super) const USER: &str = "user";
     /// The attribute for the device ID.
     pub(super) const DEVICE_ID: &str = "device-id";
-    /// The deprecated attribute for the database path.
-    pub(super) const DB_PATH: &str = "db-path";
     /// The attribute for the session ID.
     pub(super) const ID: &str = "id";
     /// The attribute for the client ID.
@@ -129,9 +130,7 @@ async fn restore_sessions_inner() -> Result<Vec<StoredSession>, oo7::Error> {
                             error!("Could not remove session database: {error}");
                         }
 
-                        if version >= 6
-                            && let Err(error) = fs::remove_dir_all(session.cache_path()).await
-                        {
+                        if let Err(error) = fs::remove_dir_all(session.cache_path()).await {
                             error!("Could not remove session cache: {error}");
                         }
                     })
@@ -222,39 +221,18 @@ impl StoredSession {
         let homeserver = parse_attribute(&attributes, keys::HOMESERVER, Url::parse)?;
         let user_id = parse_attribute(&attributes, keys::USER, |s| UserId::parse(s))?;
         let device_id = get_attribute(&attributes, keys::DEVICE_ID)?.as_str().into();
-
-        let id = if version <= 5 {
-            let string = get_attribute(&attributes, keys::DB_PATH)?;
-            Path::new(string)
-                .iter()
-                .next_back()
-                .and_then(|s| s.to_str())
-                .expect("Session ID in db-path should be valid UTF-8")
-                .to_owned()
-        } else {
-            get_attribute(&attributes, keys::ID)?.clone()
-        };
+        let id = get_attribute(&attributes, keys::ID)?.clone();
 
         let client_id = attributes.get(keys::CLIENT_ID).cloned().map(ClientId::new);
 
         let (passphrase, access_token) = match item.secret().await {
             Ok(secret) => {
                 if version <= 6 {
-                    let secret_data = if version <= 4 {
-                        match rmp_serde::from_slice::<V4SecretData>(&secret) {
-                            Ok(secret) => secret,
-                            Err(error) => {
-                                error!("Could not parse secret in stored session: {error}");
-                                return Err(LinuxSecretFieldError::Invalid.into());
-                            }
-                        }
-                    } else {
-                        match serde_json::from_slice(&secret) {
-                            Ok(secret) => secret,
-                            Err(error) => {
-                                error!("Could not parse secret in stored session: {error:?}");
-                                return Err(LinuxSecretFieldError::Invalid.into());
-                            }
+                    let secret_data = match serde_json::from_slice::<V4SecretData>(&secret) {
+                        Ok(secret) => secret,
+                        Err(error) => {
+                            error!("Could not parse secret in stored session: {error:?}");
+                            return Err(LinuxSecretFieldError::Invalid.into());
                         }
                     };
 
@@ -324,38 +302,6 @@ impl StoredSession {
         item: Item,
         access_token: Option<String>,
     ) {
-        // Version 5 changes the serialization of the secret from MessagePack to JSON.
-        // We can ignore the migration because we changed the format of the secret again
-        // in version 7.
-
-        if from_version < 6 {
-            // Version 6 truncates sessions IDs, changing the path of the databases, and
-            // removes the `db-path` attribute to replace it with the `id` attribute.
-            // Because we need to update the `version` in the attributes for version 7, we
-            // only migrate the path here.
-            info!("Migrating to version 6…");
-
-            // Get the old path of the session.
-            let old_path = self.data_path();
-
-            // Truncate the session ID.
-            self.id.truncate(SESSION_ID_LENGTH);
-            let new_path = self.data_path();
-
-            spawn_tokio!(async move {
-                debug!(
-                    "Renaming databases directory to: {}",
-                    new_path.to_string_lossy()
-                );
-
-                if let Err(error) = fs::rename(old_path, new_path).await {
-                    error!("Could not rename databases directory: {error}");
-                }
-            })
-            .await
-            .expect("task was not aborted");
-        }
-
         if from_version < 7 {
             // Version 7 moves the access token to a separate file. Only the passphrase is
             // stored as the secret now.
