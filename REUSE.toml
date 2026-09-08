@@ -1,0 +1,125 @@
+# SPDX-FileCopyrightText: Fractal Contributors
+# SPDX-License-Identifier: CC0-1.0
+
+version = 1
+SPDX-PackageName = "Fractal"
+SPDX-PackageSupplier = "The Fractal Team"
+SPDX-PackageDownloadLocation = "https://gitlab.gnome.org/World/Fractal"
+
+[[annotations]]
+path = [
+    "data/resources/style**",
+    "po/LINGUAS",
+    "po/POTFILES.in",
+    "po/POTFILES.skip",
+    "src/**",
+]
+SPDX-FileCopyrightText = "Fractal Contributors"
+SPDX-License-Identifier = "GPL-3.0-or-later"
+
+# Documentation
+[[annotations]]
+path = [
+    "CONTRIBUTING.md",
+    "README.md",
+    "RELEASING.md",
+]
+SPDX-FileCopyrightText = "Fractal Contributors"
+SPDX-License-Identifier = "CC0-1.0"
+
+
+[[annotations]]
+path = [
+    "screenshots/*",
+]
+SPDX-FileCopyrightText = "Fractal Contributors"
+SPDX-License-Identifier = "CC0-1.0"
+
+[[annotations]]
+path = [
+    "po/*.po",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "GNOME Translation Teams"
+SPDX-License-Identifier = "GPL-3.0-or-later"
+
+[[annotations]]
+path = [
+    "data/icons/org.gnome.Fractal*.svg",
+    "data/resources/icons/scalable/apps/org.gnome.Fractal.svg",
+    "data/resources/assets/**",
+]
+SPDX-FileCopyrightText = "Tobias Bernard"
+SPDX-License-Identifier = "CC-BY-SA-4.0"
+
+# Build related files and metadata
+[[annotations]]
+path = [
+    ".cargo/config.toml",
+    ".editorconfig",
+    ".gitattributes",
+    ".gitignore",
+    ".gitlab**",
+    ".rumdl.toml",
+    ".rustfmt.toml",
+    ".typos.toml",
+    "build-aux/**",
+    "**Cargo.toml",
+    "**Cargo.lock",
+    "data/org.gnome.Fractal.*.in",
+    "deny.toml",
+    "fractal.doap",
+    "hooks/**",
+    "**meson.build",
+    "meson.options",
+    "nextest.toml.in",
+    "data/resources/resources.gresource.xml",
+]
+SPDX-FileCopyrightText = "NONE"
+SPDX-License-Identifier = "CC0-1.0"
+
+# Files originating from third parties
+[[annotations]]
+path = [
+    "data/resources/sas-emoji/*",
+]
+SPDX-FileCopyrightText = "Matrix Spec Contributors and Translators"
+SPDX-License-Identifier = "Apache-2.0"
+
+[[annotations]]
+path = [
+    "data/resources/icons/**symbolic.svg",
+]
+SPDX-FileCopyrightText = "NONE"
+SPDX-License-Identifier = "CC0-1.0"
+
+[[annotations]]
+path = [
+    "AGENTS.md",
+]
+SPDX-FileCopyrightText = "The GoToSocial authors"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
+
+# Map style
+[[annotations]]
+path = [
+    "data/resources/mapstyle/osm-liberty/style.json",
+    "data/resources/mapstyle/osm-liberty/sprites*.json",
+]
+SPDX-FileCopyrightText = "MapBox GL, OSM Liberty"
+SPDX-License-Identifier = "LicenseRef-BSD-Mapbox"
+
+[[annotations]]
+path = [
+    "data/resources/mapstyle/osm-liberty/README.md",
+]
+SPDX-FileCopyrightText = "The GNOME Maps Contributors"
+SPDX-License-Identifier = "GPL-2.0-or-later"
+
+[[annotations]]
+path = [
+    "data/resources/mapstyle/osm-liberty/sprites*.png",
+]
+SPDX-FileCopyrightText = "Maki icon set"
+SPDX-License-Identifier = "CC0-1.0"
+
