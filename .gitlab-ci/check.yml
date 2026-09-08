@@ -49,3 +49,11 @@ flatpak-checks:
   artifacts:
     reports:
       codequality: codeclimate.json
+
+reuse-lint:
+  image:
+    name: fsfe/reuse:latest
+    entrypoint: [""]
+  stage: check
+  script:
+    - reuse lint
