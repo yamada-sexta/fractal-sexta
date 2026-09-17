@@ -4,7 +4,7 @@ version = "14.1.0"
 authors = ["Julian Sparber <julian@sparber.net>"]
 license = "GPL-3.0-or-later"
 edition = "2024"
-rust-version = "1.95"
+rust-version = "1.96"
 publish = false
 
 [package.metadata.cargo-machete]
@@ -62,8 +62,8 @@ zeroize = "1"
 
 # gtk-rs project and dependents. These usually need to be updated together.
 adw = { version = "0.9", features = ["v1_8"], package = "libadwaita" }
-glycin = { version = "0.1", package = "libglycin-rebind" }
-glycin-gtk4 = { version = "0.1", package = "libglycin-gtk4-rebind" }
+glycin = { version = "0.2", package = "libglycin-rebind" }
+glycin-gtk4 = { version = "0.2", package = "libglycin-gtk4-rebind" }
 gst = { version = "0.25", package = "gstreamer" }
 gst_app = { version = "0.25", package = "gstreamer-app" }
 gst_pbutils = { version = "0.25", package = "gstreamer-pbutils" }
