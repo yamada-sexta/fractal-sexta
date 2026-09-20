@@ -12,7 +12,7 @@ variables:
   # The ID of our Flatpak app.
   APP_ID: "org.gnome.Fractal.Devel"
   # The latest GNOME stable Flatpak runtime.
-  GNOME_STABLE_VERSION: "50"
+  GNOME_STABLE_VERSION: "51"
   # The version of the Rust nightly toolchain used for some checks.
   #
   # Should be a date formatted as `YYYY-MM-DD`.
