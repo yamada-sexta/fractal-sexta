@@ -21,7 +21,7 @@
     "build-options": {
         "append-path": "/usr/lib/sdk/rust-stable/bin",
         "env": {
-            "RUSTFLAGS": "-C link-arg=-fuse-ld=mold --cfg=ruma_identifiers_storage=\"Arc\""
+            "RUSTFLAGS": "-C link-arg=-fuse-ld=mold --cfg=ruma_identifiers_storage=\"ThinArc\""
         },
         "build-args": [
             "--share=network"

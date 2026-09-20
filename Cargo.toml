@@ -106,16 +106,17 @@ version = "0.17"
 # rev = "db24422e03aea7c7974230098fe9aeb5481cddc6"
 features = [
     "client-api-c",
-    "markdown",
-    "html-matrix",
     "compat-arbitrary-length-ids",
-    "compat-server-signing-key-version",
     "compat-empty-string-null",
-    "compat-null",
-    "compat-optional",
-    "compat-unset-avatar",
     "compat-lax-room-create-deser",
     "compat-lax-room-topic-deser",
+    "compat-null",
+    "compat-optional",
+    "compat-server-signing-key-version",
+    "compat-unset-avatar",
+    "html-matrix",
+    "markdown",
+    "triomphe",
 ]
 
 # Linux-only dependencies.
