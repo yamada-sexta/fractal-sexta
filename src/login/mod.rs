@@ -3,7 +3,7 @@ use std::net::{Ipv4Addr, Ipv6Addr};
 use adw::{prelude::*, subclass::prelude::*};
 use as_variant::as_variant;
 use gettextrs::gettext;
-use gtk::{gio, glib, glib::clone};
+use gtk::{glib, glib::clone};
 use matrix_sdk::{
     Client, ClientBuildError,
     authentication::oauth::{
@@ -13,7 +13,7 @@ use matrix_sdk::{
     config::RequestConfig,
     utils::local_server::LocalServerRedirectHandle,
 };
-use ruma::{OwnedServerName, api::client::session::get_login_types::v3::LoginType, serde::Raw};
+use ruma::{api::client::session::get_login_types::v3::LoginType, serde::Raw};
 use tracing::warn;
 use url::Url;
 
@@ -30,7 +30,7 @@ use self::{
     homeserver_page::{HomeserverData, LoginHomeserverPage},
     in_browser_page::{LoginInBrowserData, LoginInBrowserPage},
     local_server::spawn_local_server,
-    method_page::LoginMethodPage,
+    method_page::{LoginMatrixData, LoginMatrixPasswordData, LoginMethodPage, LoginMethodPageData},
     session_setup_view::SessionSetupView,
 };
 use crate::{
@@ -97,7 +97,7 @@ mod imp {
     #[properties(wrapper_type = super::Login)]
     pub struct Login {
         #[template_child]
-        navigation: TemplateChild<adw::NavigationView>,
+        pub(super) navigation: TemplateChild<adw::NavigationView>,
         #[template_child]
         greeter: TemplateChild<Greeter>,
         #[template_child]
@@ -132,19 +132,6 @@ mod imp {
 
             klass.set_css_name("login");
             klass.set_accessible_role(gtk::AccessibleRole::Group);
-
-            klass.install_action_async("login.sso", None, |obj, _, _| async move {
-                let imp = obj.imp();
-
-                let Some(client) = imp.client().await else {
-                    toast!(obj, gettext("Could not set up login"));
-                    return;
-                };
-
-                if imp.init_matrix_sso_login(client).await.is_err() {
-                    toast!(obj, gettext("Could not set up login"));
-                }
-            });
         }
 
         fn instance_init(obj: &InitializingObject<Self>) {
@@ -156,17 +143,6 @@ mod imp {
     impl ObjectImpl for Login {
         fn constructed(&self) {
             self.parent_constructed();
-            let obj = self.obj();
-
-            let monitor = gio::NetworkMonitor::default();
-            monitor.connect_network_changed(clone!(
-                #[weak]
-                obj,
-                move |_, available| {
-                    obj.action_set_enabled("login.sso", available);
-                }
-            ));
-            obj.action_set_enabled("login.sso", monitor.is_network_available());
 
             self.navigation.connect_visible_page_notify(clone!(
                 #[weak(rename_to = imp)]
@@ -183,6 +159,17 @@ mod imp {
                     spawn!(async move {
                         imp.check_homeserver_data(data).await;
                         imp.homeserver_page.set_is_loading(false);
+                    });
+                }
+            ));
+
+            self.method_page.connect_login_data(clone!(
+                #[weak(rename_to = imp)]
+                self,
+                move |data| {
+                    spawn!(async move {
+                        imp.log_in_with_matrix(data).await;
+                        imp.method_page.set_is_loading(false);
                     });
                 }
             ));
@@ -250,7 +237,7 @@ mod imp {
                     self.drop_client();
                     // Drop the session because it is bound to the homeserver and account.
                     self.drop_session();
-                    self.method_page.clean();
+                    self.method_page.reset();
                 }
                 LoginPage::Method => {
                     // Drop the session because it is bound to the account.
@@ -465,14 +452,20 @@ mod imp {
                 .any(|login_type| matches!(login_type, LoginType::Sso(_)));
 
             if supports_password {
-                let server_name = self
+                let domain_name = self
                     .homeserver_data
                     .borrow()
                     .as_ref()
                     .and_then(|data| as_variant!(data, HomeserverData::ServerName))
                     .cloned();
 
-                self.show_method_page(&client.homeserver(), server_name.as_ref(), supports_sso);
+                let data = LoginMethodPageData {
+                    homeserver_url: &client.homeserver(),
+                    domain_name: domain_name.as_deref(),
+                    supports_sso,
+                };
+
+                self.show_method_page(data);
                 Ok(())
             } else {
                 self.init_matrix_sso_login(client).await
@@ -512,15 +505,60 @@ mod imp {
         }
 
         /// Show the page to chose a login method with the given data.
-        fn show_method_page(
-            &self,
-            homeserver: &Url,
-            server_name: Option<&OwnedServerName>,
-            supports_sso: bool,
-        ) {
-            self.method_page
-                .update(homeserver, server_name, supports_sso);
+        fn show_method_page(&self, data: LoginMethodPageData<'_>) {
+            self.method_page.update(data);
             self.navigation.push_by_tag(LoginPage::Method.tag());
+        }
+
+        /// Log in with the given Matrix native flow.
+        async fn log_in_with_matrix(&self, data: LoginMatrixData) {
+            let Some(client) = self.client().await else {
+                toast!(self.obj(), gettext("Could not set up login"));
+                return;
+            };
+
+            match data {
+                LoginMatrixData::Password(password_data) => {
+                    self.log_in_with_matrix_password(client, password_data)
+                        .await;
+                }
+                LoginMatrixData::Sso => {
+                    if self.init_matrix_sso_login(client).await.is_err() {
+                        toast!(self.obj(), gettext("Could not set up login"));
+                    }
+                }
+            }
+        }
+
+        /// Log in with the Matrix native password flow.
+        async fn log_in_with_matrix_password(
+            &self,
+            client: Client,
+            password_data: LoginMatrixPasswordData,
+        ) {
+            let matrix_auth = client.matrix_auth();
+            let handle = spawn_tokio!(async move {
+                matrix_auth
+                    .login_username(&password_data.username, &password_data.password)
+                    .initial_device_display_name(APP_NAME)
+                    .send()
+                    .await
+            });
+
+            let Some(result) = self.abort_handle.await_task(handle).await else {
+                // The task was aborted.
+                return;
+            };
+
+            match result {
+                Ok(_) => {
+                    let _ = self.create_session(client).await;
+                }
+                Err(error) => {
+                    warn!("Could not log in: {error}");
+                    toast!(self.obj(), error.to_user_facing());
+                }
+            }
         }
 
         /// Show the page to log in with the browser with the given data.
@@ -534,18 +572,16 @@ mod imp {
         }
 
         /// Create the session after a successful login.
-        pub(super) async fn create_session(&self) {
-            let client = self.client().await.expect("client should be constructed");
-
+        pub(super) async fn create_session(&self, client: Client) -> Result<(), ()> {
             match Session::create(&client).await {
                 Ok(session) => {
                     self.init_session(session).await;
+                    Ok(())
                 }
                 Err(error) => {
                     warn!("Could not create session: {error}");
                     toast!(self.obj(), error.to_user_facing());
-
-                    self.navigation.pop();
+                    Err(())
                 }
             }
         }
@@ -600,7 +636,7 @@ mod imp {
         pub(super) fn clean(&self) {
             // Clean pages.
             self.homeserver_page.reset();
-            self.method_page.clean();
+            self.method_page.reset();
 
             // Clean data.
             self.drop_client();
@@ -608,17 +644,6 @@ mod imp {
 
             // Reinitialize UI.
             self.navigation.pop_to_tag(LoginPage::Greeter.tag());
-            self.unfreeze();
-        }
-
-        /// Freeze the login screen.
-        pub(super) fn freeze(&self) {
-            self.navigation.set_sensitive(false);
-        }
-
-        /// Unfreeze the login screen.
-        pub(super) fn unfreeze(&self) {
-            self.navigation.set_sensitive(true);
         }
     }
 }
@@ -640,19 +665,13 @@ impl Login {
         self.imp().client().await
     }
 
-    /// Freeze the login screen.
-    fn freeze(&self) {
-        self.imp().freeze();
-    }
-
-    /// Unfreeze the login screen.
-    fn unfreeze(&self) {
-        self.imp().unfreeze();
-    }
-
     /// Create the session after a successful login.
-    async fn create_session(&self) {
-        self.imp().create_session().await;
+    async fn create_session(&self, client: Client) {
+        let imp = self.imp();
+
+        if imp.create_session(client).await.is_err() {
+            imp.navigation.pop();
+        }
     }
 }
 

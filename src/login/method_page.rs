@@ -1,14 +1,18 @@
 use adw::{prelude::*, subclass::prelude::*};
 use gettextrs::gettext;
 use gtk::glib;
-use ruma::OwnedServerName;
-use tracing::warn;
+use ruma::ServerName;
 use url::Url;
 
-use super::Login;
-use crate::{components::LoadingButton, gettext_f, prelude::*, spawn_tokio, toast};
+use crate::{
+    components::{LoadingButton, OfflineBanner},
+    gettext_f,
+    utils::{Broadcaster, TemplateCallbacks},
+};
 
 mod imp {
+    use std::cell::Cell;
+
     use glib::subclass::InitializingObject;
 
     use super::*;
@@ -29,9 +33,11 @@ mod imp {
         sso_button: TemplateChild<gtk::Button>,
         #[template_child]
         next_button: TemplateChild<LoadingButton>,
-        /// The parent `Login` object.
-        #[property(get, set, nullable)]
-        login: glib::WeakRef<Login>,
+        /// Whether this page is in its loading state.
+        #[property(get, set = Self::set_is_loading, explicit_notify)]
+        is_loading: Cell<bool>,
+        /// Sender for the login data.
+        pub(super) login_data_sender: Broadcaster<LoginMatrixData>,
     }
 
     #[glib::object_subclass]
@@ -41,8 +47,11 @@ mod imp {
         type ParentType = adw::NavigationPage;
 
         fn class_init(klass: &mut Self::Class) {
+            OfflineBanner::ensure_type();
+
             Self::bind_template(klass);
             Self::bind_template_callbacks(klass);
+            TemplateCallbacks::bind_template_callbacks(klass);
         }
 
         fn instance_init(obj: &InitializingObject<Self>) {
@@ -67,30 +76,27 @@ mod imp {
 
     #[gtk::template_callbacks]
     impl LoginMethodPage {
-        /// The username entered by the user.
-        fn username(&self) -> glib::GString {
-            self.username_entry.text()
+        /// Set the loading state of this page.
+        fn set_is_loading(&self, loading: bool) {
+            if self.is_loading.get() == loading {
+                return;
+            }
+
+            self.is_loading.set(loading);
+
+            self.obj().notify_is_loading();
         }
 
-        /// The password entered by the user.
-        fn password(&self) -> glib::GString {
-            self.password_entry.text()
-        }
-
-        /// Update the domain name and URL displayed in the title.
-        pub(super) fn update_title(
-            &self,
-            homeserver_url: &Url,
-            server_name: Option<&OwnedServerName>,
-        ) {
-            let title = if let Some(server_name) = server_name {
+        /// Update this page with the given data.
+        pub(super) fn update(&self, data: LoginMethodPageData<'_>) {
+            let title = if let Some(domain_name) = data.domain_name {
                 gettext_f(
                     // Translators: Do NOT translate the content between '{' and '}', this is a
                     // variable name.
                     "Log in to {domain_name}",
                     &[(
                         "domain_name",
-                        &format!("<span segment=\"word\">{server_name}</span>"),
+                        &format!("<span segment=\"word\">{domain_name}</span>"),
                     )],
                 )
             } else {
@@ -98,76 +104,51 @@ mod imp {
             };
             self.title.set_markup(&title);
 
-            let homeserver_url = homeserver_url.as_str().trim_end_matches('/');
+            let homeserver_url = data.homeserver_url.as_str().trim_end_matches('/');
             self.homeserver_url.set_label(homeserver_url);
+
+            self.sso_button.set_visible(data.supports_sso);
+
+            self.update_next_state();
         }
 
-        /// Update the SSO group.
-        pub(super) fn update_sso(&self, supports_sso: bool) {
-            self.sso_button.set_visible(supports_sso);
-        }
-
-        /// Whether the current state allows to login with a password.
-        fn can_login_with_password(&self) -> bool {
-            let username_length = self.username().len();
-            let password_length = self.password().len();
-            username_length != 0 && password_length != 0
+        /// The data for logging in via the password flow.
+        ///
+        /// Returns `None` if the data is invalid.
+        fn password_data(&self) -> Option<LoginMatrixPasswordData> {
+            LoginMatrixPasswordData::new(self.username_entry.text(), self.password_entry.text())
         }
 
         /// Update the state of the "Next" button.
         #[template_callback]
-        pub(super) fn update_next_state(&self) {
+        fn update_next_state(&self) {
             self.next_button
-                .set_sensitive(self.can_login_with_password());
+                .set_sensitive(self.password_data().is_some());
         }
 
-        /// Login with the password login type.
+        /// Log in with the password login flow.
         #[template_callback]
-        async fn login_with_password(&self) {
-            if !self.can_login_with_password() {
-                return;
-            }
-
-            let Some(login) = self.login.upgrade() else {
+        fn log_in_with_password(&self) {
+            let Some(password_data) = self.password_data() else {
                 return;
             };
 
-            self.next_button.set_is_loading(true);
-            login.freeze();
+            self.set_is_loading(true);
+            self.login_data_sender
+                .send(LoginMatrixData::Password(password_data));
+        }
 
-            let username = self.username();
-            let password = self.password();
-
-            let client = login.client().await.unwrap();
-            let handle = spawn_tokio!(async move {
-                client
-                    .matrix_auth()
-                    .login_username(&username, &password)
-                    .initial_device_display_name("Fractal")
-                    .send()
-                    .await
-            });
-
-            match handle.await.expect("task was not aborted") {
-                Ok(_) => {
-                    login.create_session().await;
-                }
-                Err(error) => {
-                    warn!("Could not log in: {error}");
-                    toast!(self.obj(), error.to_user_facing());
-                }
-            }
-
-            self.next_button.set_is_loading(false);
-            login.unfreeze();
+        /// Log in with the SSO login flow.
+        #[template_callback]
+        fn log_in_with_sso(&self) {
+            self.login_data_sender.send(LoginMatrixData::Sso);
         }
 
         /// Reset this page.
-        pub(super) fn clean(&self) {
+        pub(super) fn reset(&self) {
             self.username_entry.set_text("");
             self.password_entry.set_text("");
-            self.next_button.set_is_loading(false);
-            self.update_next_state();
+            self.set_is_loading(false);
         }
     }
 }
@@ -188,20 +169,101 @@ impl LoginMethodPage {
     }
 
     /// Update this page with the given data.
-    pub(crate) fn update(
-        &self,
-        homeserver_url: &Url,
-        domain_name: Option<&OwnedServerName>,
-        supports_sso: bool,
-    ) {
-        let imp = self.imp();
-        imp.update_title(homeserver_url, domain_name);
-        imp.update_sso(supports_sso);
-        imp.update_next_state();
+    pub(super) fn update(&self, data: LoginMethodPageData<'_>) {
+        self.imp().update(data);
+    }
+
+    /// Connect to changes of the login data.
+    pub(super) fn connect_login_data<F>(&self, callback: F)
+    where
+        F: Fn(LoginMatrixData) + 'static,
+    {
+        self.imp().login_data_sender.connect(callback);
     }
 
     /// Reset this page.
-    pub(crate) fn clean(&self) {
-        self.imp().clean();
+    pub(super) fn reset(&self) {
+        self.imp().reset();
+    }
+}
+
+/// The data necessary to populate the [`LoginMethodPage`].
+#[derive(Debug, Clone, Copy)]
+pub(super) struct LoginMethodPageData<'a> {
+    /// The URL used to connect to the homeserver.
+    pub(super) homeserver_url: &'a Url,
+
+    /// The domain name of the homeserver, if it is known.
+    pub(super) domain_name: Option<&'a ServerName>,
+
+    /// Whether the homeserver supports login via SSO.
+    pub(super) supports_sso: bool,
+}
+
+/// The data to use to log in with the homeserver using one of the native Matrix
+/// flows.
+#[derive(Debug, Clone)]
+pub(super) enum LoginMatrixData {
+    /// Log in using the password flow.
+    Password(LoginMatrixPasswordData),
+
+    /// Log in using the SSO flow.
+    Sso,
+}
+
+/// The data to use to log in with the homeserver via the password flow.
+#[derive(Debug, Clone)]
+pub(super) struct LoginMatrixPasswordData {
+    /// The username.
+    pub(super) username: glib::GString,
+
+    /// The password.
+    pub(super) password: glib::GString,
+}
+
+impl LoginMatrixPasswordData {
+    /// Construct the data from the given username and password.
+    ///
+    /// Returns `None` if either the username or password is invalid.
+    fn new(username: glib::GString, password: glib::GString) -> Option<Self> {
+        if username.is_empty() || password.is_empty() {
+            return None;
+        }
+
+        Some(Self { username, password })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::assert_matches;
+
+    use gtk::glib::gformat;
+
+    use super::{LoginMatrixPasswordData, LoginMethodPage};
+    use crate::utils::tests::load_gresources;
+
+    #[gtk::test]
+    fn construct() {
+        // Check that the GObject is constructed successfully, i.e. the template file is
+        // valid.
+        load_gresources();
+        LoginMethodPage::new();
+    }
+
+    #[test]
+    fn construct_matrix_login_password_data() {
+        assert_matches!(
+            LoginMatrixPasswordData::new(gformat!(""), gformat!("pass")),
+            None
+        );
+        assert_matches!(
+            LoginMatrixPasswordData::new(gformat!("user"), gformat!("")),
+            None
+        );
+        assert_matches!(
+            LoginMatrixPasswordData::new(gformat!("user"), gformat!("pass")),
+            Some(_)
+        );
     }
 }

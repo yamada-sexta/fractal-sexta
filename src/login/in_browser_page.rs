@@ -167,7 +167,7 @@ mod imp {
 
             match result {
                 Ok(()) => {
-                    login.create_session().await;
+                    login.create_session(client).await;
                 }
                 Err(error) => {
                     warn!("Could not log in via OAuth 2.0: {error}");
@@ -208,7 +208,7 @@ mod imp {
 
             match result {
                 Ok(_) => {
-                    login.create_session().await;
+                    login.create_session(client).await;
                 }
                 Err(error) => {
                     warn!("Could not log in via SSO: {error}");
