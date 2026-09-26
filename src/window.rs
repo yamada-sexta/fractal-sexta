@@ -129,9 +129,6 @@ mod imp {
             klass.install_action("win.new-session", None, |obj, _, _| {
                 obj.imp().set_visible_page(WindowPage::Login);
             });
-            klass.install_action("win.show-session", None, |obj, _, _| {
-                obj.imp().show_session();
-            });
 
             klass.install_action("win.toggle-fullscreen", None, |obj, _, _| {
                 if obj.is_fullscreen() {
@@ -192,8 +189,7 @@ mod imp {
                 #[weak(rename_to = imp)]
                 self,
                 move |session_selection| {
-                    imp.obj()
-                        .action_set_enabled("win.show-session", !session_selection.is_empty());
+                    imp.login.set_can_go_back(!session_selection.is_empty());
                 }
             ));
 
@@ -215,6 +211,14 @@ mod imp {
                     }
                 ));
             }
+
+            self.login.connect_go_back(clone!(
+                #[weak(rename_to = imp)]
+                self,
+                move || {
+                    imp.show_session();
+                }
+            ));
         }
     }
 

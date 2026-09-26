@@ -11,10 +11,10 @@ template $Greeter: Adw.NavigationPage {
     Adw.HeaderBar {
       [start]
       Gtk.Button back_button {
-        action-name: "win.show-session";
-        visible: bind back_button.sensitive;
+        visible: bind template.can-go-back;
         icon-name: "go-previous-symbolic";
         tooltip-text: _("Back");
+        clicked => $go_back() swapped;
 
         accessibility {
           label: _("Back");

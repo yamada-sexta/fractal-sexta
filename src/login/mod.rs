@@ -40,7 +40,10 @@ use crate::{
 };
 
 /// A page of the login stack.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// The `Ord` implementation follows the order of the pages in the login flow,
+/// so it can be used to check its progress.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum LoginPage {
     /// The greeter page.
     Greeter,
@@ -97,9 +100,9 @@ mod imp {
     #[properties(wrapper_type = super::Login)]
     pub struct Login {
         #[template_child]
-        pub(super) navigation: TemplateChild<adw::NavigationView>,
+        navigation: TemplateChild<adw::NavigationView>,
         #[template_child]
-        greeter: TemplateChild<Greeter>,
+        pub(super) greeter: TemplateChild<Greeter>,
         #[template_child]
         homeserver_page: TemplateChild<LoginHomeserverPage>,
         #[template_child]
@@ -149,11 +152,11 @@ mod imp {
         fn constructed(&self) {
             self.parent_constructed();
 
-            self.navigation.connect_visible_page_notify(clone!(
+            self.navigation.connect_popped(clone!(
                 #[weak(rename_to = imp)]
                 self,
-                move |_| {
-                    imp.visible_page_changed();
+                move |_, _| {
+                    imp.navigation_popped();
                 }
             ));
 
@@ -223,7 +226,7 @@ mod imp {
     #[gtk::template_callbacks]
     impl Login {
         /// The visible page of the view.
-        pub(super) fn visible_page(&self) -> LoginPage {
+        fn visible_page(&self) -> LoginPage {
             LoginPage::from_tag(
                 &self
                     .navigation
@@ -235,32 +238,35 @@ mod imp {
         }
 
         /// Get the session setup view, if any.
-        pub(super) fn session_setup(&self) -> Option<SessionSetupView> {
+        fn session_setup(&self) -> Option<SessionSetupView> {
             self.navigation
                 .find_page(LoginPage::SessionSetup.tag())
                 .and_downcast()
         }
 
-        /// The visible page changed.
-        fn visible_page_changed(&self) {
-            // Abort the ongoing task, if any. There should not be any ongoing task while we
-            // are going forward, so if a task is aborted it means that we are going
-            // backward.
+        /// Handle when the user went back in the login flow.
+        fn navigation_popped(&self) {
+            // Abort the ongoing task, if any.
             self.abort_handle.abort();
 
-            match self.visible_page() {
-                LoginPage::Homeserver => {
-                    // Drop the client because it is bound to the homeserver.
-                    self.drop_client();
-                    // Drop the session because it is bound to the homeserver and account.
-                    self.drop_session();
-                    self.method_page.reset();
-                }
-                LoginPage::Method => {
-                    // Drop the session because it is bound to the account.
-                    self.drop_session();
-                }
-                _ => {}
+            let visible_page = self.visible_page();
+
+            if visible_page <= LoginPage::InBrowser {
+                // Drop the session because it is bound to the account.
+                self.drop_session();
+            }
+
+            if visible_page <= LoginPage::Method {
+                // Drop the in-browser data because we need to recompute it for retries.
+                self.local_server_handle.take();
+                self.in_browser_data.take();
+            }
+
+            if visible_page <= LoginPage::Homeserver {
+                // Drop the client because it is bound to the homeserver.
+                self.drop_client();
+                // Clear the user credentials for security.
+                self.method_page.reset();
             }
         }
 
@@ -742,30 +748,40 @@ mod imp {
                 window.add_session(session);
             }
 
-            self.clean();
+            self.reset();
         }
 
-        /// Reset the login stack.
-        pub(super) fn clean(&self) {
-            // Clean pages.
-            self.homeserver_page.reset();
-            self.method_page.reset();
+        /// Connect to the signal to go back from this view.
+        pub(super) fn connect_go_back<F>(&self, callback: F)
+        where
+            F: Fn() + 'static,
+        {
+            self.greeter.connect_go_back(clone!(
+                #[weak(rename_to = imp)]
+                self,
+                move || {
+                    callback();
+                    imp.reset();
+                }
+            ));
+        }
 
-            // Clean data.
-            self.drop_client();
-            self.drop_session();
+        /// Reset the login view.
+        fn reset(&self) {
+            // Reset homeserver data and page.
             self.homeserver_data.take();
-            self.local_server_handle.take();
-            self.in_browser_data.take();
+            self.homeserver_page.reset();
 
             // Reinitialize UI.
+            // This should clean more data with the resulting call to
+            // `navigation_popped()`.
             self.navigation.pop_to_tag(LoginPage::Greeter.tag());
         }
     }
 }
 
 glib::wrapper! {
-    /// A widget managing the login flows.
+    /// A widget managing the login flow.
     pub struct Login(ObjectSubclass<imp::Login>)
         @extends gtk::Widget, adw::Bin,
         @implements gtk::Accessible, gtk::Buildable, gtk::ConstraintTarget;
@@ -774,6 +790,19 @@ glib::wrapper! {
 impl Login {
     pub fn new() -> Self {
         glib::Object::new()
+    }
+
+    /// Set whether the user can go back from this view.
+    pub(super) fn set_can_go_back(&self, can_go_back: bool) {
+        self.imp().greeter.set_can_go_back(can_go_back);
+    }
+
+    /// Connect to the signal to go back from this view.
+    pub(super) fn connect_go_back<F>(&self, callback: F)
+    where
+        F: Fn() + 'static,
+    {
+        self.imp().connect_go_back(callback);
     }
 }
 
