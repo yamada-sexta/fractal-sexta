@@ -5,16 +5,16 @@ use as_variant::as_variant;
 use gettextrs::gettext;
 use gtk::{glib, glib::clone};
 use matrix_sdk::{
-    Client, ClientBuildError,
+    Client, ClientBuildError, Error,
     authentication::oauth::{
         ClientRegistrationData,
         registration::{ApplicationType, ClientMetadata, Localized, OAuthGrantType},
     },
     config::RequestConfig,
-    utils::local_server::LocalServerRedirectHandle,
+    utils::local_server::{LocalServerRedirectHandle, QueryString},
 };
 use ruma::{api::client::session::get_login_types::v3::LoginType, serde::Raw};
-use tracing::warn;
+use tracing::{error, warn};
 use url::Url;
 
 mod advanced_dialog;
@@ -28,7 +28,7 @@ mod session_setup_view;
 use self::{
     greeter::Greeter,
     homeserver_page::{HomeserverData, LoginHomeserverPage},
-    in_browser_page::{LoginInBrowserData, LoginInBrowserPage},
+    in_browser_page::LoginInBrowserPage,
     local_server::spawn_local_server,
     method_page::{LoginMatrixData, LoginMatrixPasswordData, LoginMethodPage, LoginMethodPageData},
     session_setup_view::SessionSetupView,
@@ -112,6 +112,11 @@ mod imp {
         homeserver_data: RefCell<Option<HomeserverData>>,
         /// The Matrix client used to log in.
         client: RefCell<Option<Client>>,
+        /// A handle to the local server to wait for the redirect in the
+        /// browser.
+        local_server_handle: RefCell<Option<LocalServerRedirectHandle>>,
+        /// The data to use to log in with the browser.
+        in_browser_data: RefCell<Option<LoginInBrowserData>>,
         /// The session that was just logged in.
         session: RefCell<Option<Session>>,
         /// An abort handle for the ongoing action.
@@ -170,6 +175,18 @@ mod imp {
                     spawn!(async move {
                         imp.log_in_with_matrix(data).await;
                         imp.method_page.set_is_loading(false);
+                    });
+                }
+            ));
+
+            self.in_browser_page.connect_launch_url(clone!(
+                #[weak(rename_to = imp)]
+                self,
+                move |()| {
+                    spawn!(async move {
+                        if imp.launch_in_browser_url().await.is_err() {
+                            imp.navigation.pop();
+                        }
                     });
                 }
             ));
@@ -418,10 +435,10 @@ mod imp {
                 }
             };
 
-            self.show_in_browser_page(
-                local_server_handle,
-                LoginInBrowserData::Oauth(authorization_data),
-            );
+            self.local_server_handle.replace(Some(local_server_handle));
+            self.in_browser_data
+                .replace(Some(LoginInBrowserData::OAuth(authorization_data.url)));
+            self.navigation.push_by_tag(LoginPage::InBrowser.tag());
 
             Ok(())
         }
@@ -493,8 +510,10 @@ mod imp {
 
             match result {
                 Ok(url) => {
-                    let url = Url::parse(&url).expect("Matrix SSO URL should be a valid URL");
-                    self.show_in_browser_page(local_server_handle, LoginInBrowserData::Matrix(url));
+                    self.local_server_handle.replace(Some(local_server_handle));
+                    self.in_browser_data
+                        .replace(Some(LoginInBrowserData::MatrixSso(url)));
+                    self.navigation.push_by_tag(LoginPage::InBrowser.tag());
                     Ok(())
                 }
                 Err(error) => {
@@ -561,14 +580,108 @@ mod imp {
             }
         }
 
-        /// Show the page to log in with the browser with the given data.
-        fn show_in_browser_page(
-            &self,
-            local_server_handle: LocalServerRedirectHandle,
-            data: LoginInBrowserData,
-        ) {
-            self.in_browser_page.set_up(local_server_handle, data);
-            self.navigation.push_by_tag(LoginPage::InBrowser.tag());
+        /// Open the current URL to log in with the browser.
+        async fn launch_in_browser_url(&self) -> Result<(), ()> {
+            let Some(data) = self.in_browser_data.borrow().clone() else {
+                error!("Could not launch URI: missing in-browser data");
+                toast!(self.obj(), gettext("Could not open URL"));
+                return Err(());
+            };
+
+            if let Err(error) = gtk::UriLauncher::new(data.url())
+                .launch_future(self.obj().root().and_downcast_ref::<gtk::Window>())
+                .await
+            {
+                error!("Could not launch URI: {error}");
+                toast!(self.obj(), gettext("Could not open URL"));
+                return Err(());
+            }
+
+            let Some(local_server_handle) = self.local_server_handle.take() else {
+                // If we don't have the server handle, we are already waiting for the redirect.
+                return Ok(());
+            };
+
+            let handle = spawn_tokio!(async move { local_server_handle.await });
+
+            let Some(result) = self.abort_handle.await_task(handle).await else {
+                // The task was aborted.
+                return Ok(());
+            };
+
+            // This should show a notification for the user to go back to this app.
+            if let Some(window) = self.obj().root().and_downcast::<gtk::Window>() {
+                window.present();
+            }
+
+            let Some(query_string) = result else {
+                warn!("Could not log in: missing query string in redirect URI");
+                toast!(self.obj(), gettext("An unexpected error occurred."));
+                return Err(());
+            };
+
+            match &data {
+                LoginInBrowserData::OAuth(_) => self.finish_oauth_login(query_string).await,
+                LoginInBrowserData::MatrixSso(_) => {
+                    self.finish_matrix_sso_login(query_string).await
+                }
+            }
+        }
+
+        /// Finish the OAuth 2.0 login process.
+        async fn finish_oauth_login(&self, query_string: QueryString) -> Result<(), ()> {
+            let Some(client) = self.client().await else {
+                toast!(self.obj(), gettext("Could not set up login"));
+                return Err(());
+            };
+
+            let oauth = client.oauth();
+            let handle = spawn_tokio!(async move { oauth.finish_login(query_string.into()).await });
+
+            let Some(result) = self.abort_handle.await_task(handle).await else {
+                // The task was aborted.
+                return Ok(());
+            };
+
+            match result {
+                Ok(()) => self.create_session(client).await,
+                Err(error) => {
+                    warn!("Could not log in via OAuth 2.0: {error}");
+                    toast!(self.obj(), error.to_user_facing());
+                    Err(())
+                }
+            }
+        }
+
+        /// Finish the Matrix SSO login process.
+        async fn finish_matrix_sso_login(&self, query_string: QueryString) -> Result<(), ()> {
+            let Some(client) = self.client().await else {
+                toast!(self.obj(), gettext("Could not set up login"));
+                return Err(());
+            };
+
+            let matrix_auth = client.matrix_auth();
+            let handle = spawn_tokio!(async move {
+                matrix_auth
+                    .login_with_sso_callback(query_string.into())
+                    .map_err(|error| Error::UnknownError(error.into()))?
+                    .initial_device_display_name(APP_NAME)
+                    .await
+            });
+
+            let Some(result) = self.abort_handle.await_task(handle).await else {
+                // The task was aborted.
+                return Ok(());
+            };
+
+            match result {
+                Ok(_) => self.create_session(client).await,
+                Err(error) => {
+                    warn!("Could not log in via SSO: {error}");
+                    toast!(self.obj(), error.to_user_facing());
+                    Err(())
+                }
+            }
         }
 
         /// Create the session after a successful login.
@@ -641,6 +754,9 @@ mod imp {
             // Clean data.
             self.drop_client();
             self.drop_session();
+            self.homeserver_data.take();
+            self.local_server_handle.take();
+            self.in_browser_data.take();
 
             // Reinitialize UI.
             self.navigation.pop_to_tag(LoginPage::Greeter.tag());
@@ -659,18 +775,24 @@ impl Login {
     pub fn new() -> Self {
         glib::Object::new()
     }
+}
 
-    /// The Matrix client.
-    async fn client(&self) -> Option<Client> {
-        self.imp().client().await
-    }
+/// Data for logging in via the browser.
+#[derive(Debug, Clone)]
+enum LoginInBrowserData {
+    /// Log in via the OAuth 2.0 API with the given URL.
+    OAuth(Url),
 
-    /// Create the session after a successful login.
-    async fn create_session(&self, client: Client) {
-        let imp = self.imp();
+    /// Log in via the Matrix native SSO API with the given URL.
+    MatrixSso(String),
+}
 
-        if imp.create_session(client).await.is_err() {
-            imp.navigation.pop();
+impl LoginInBrowserData {
+    /// Get the URL to open in the browser.
+    fn url(&self) -> &str {
+        match self {
+            Self::OAuth(url) => url.as_str(),
+            Self::MatrixSso(url) => url,
         }
     }
 }
