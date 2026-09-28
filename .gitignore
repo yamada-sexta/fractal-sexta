@@ -15,6 +15,7 @@ target/
 # Temporary files
 *.ui.in~
 *.ui~
+*.swp
 
 # Dynamically-generated files
 src/config.rs
