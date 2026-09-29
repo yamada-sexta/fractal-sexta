@@ -131,7 +131,7 @@ fenv exec -- {COMMAND}
 
 The command will run in the current directory by default.
 
-### Install the flatpak
+### Install the Flatpak
 
 Some features that interact with the system require the app to be installed to test them (i.e.
 notifications, command line arguments, etc.).
@@ -169,7 +169,7 @@ ninja -C _build
 sudo ninja -C _build install
 ```
 
-## Pre-commit
+## Pre-Commit
 
 We expect all code contributions to be correctly formatted. To help with that, a pre-commit hook
 should get installed as part of the building process. It runs the `hooks/checks` crate. It's a
@@ -202,7 +202,7 @@ You must pass all the prerequisites of the [Change Submission Guide](https://han
 Before submitting a merge request, make sure that [your fork is available publicly](https://gitlab.gnome.org/help/user/public_access.md),
 otherwise CI won't be able to run.
 
-Use the title of your commit as the title of your MR if there's only one. Otherwise it should
+Use the title of your commit as the title of your MR if there's only one. Otherwise, it should
 summarize all your commits. If your commits do several tasks that can be separated, open several
 merge requests.
 
@@ -237,7 +237,7 @@ to, code, documentation, issues, and artworks. Translating texts for issues and 
 English can be achieved with machine translation tools, without the use of generative AI (LLM),
 such as DeepL.
 
-### Project-related use of LLMs
+### Project-Related Use of LLMs
 
 We heavily discourage the use of LLM chat bots as a replacement for reading Fractal's documentation
 and API reference.

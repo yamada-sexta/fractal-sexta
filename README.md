@@ -31,7 +31,7 @@ Highlights:
 * Find rooms to discuss your favorite topics, or talk privately to people, securely thanks to
   end-to-end encryption
 * Send rich formatted messages, files, or your current location
-* Reply to specific messages, react with emoji, edit or remove messages
+* Reply to specific messages, react with emoji, edit, or remove messages
 * View images, and play audio and video directly in the conversation
 * See who has read messages, and who is typing
 * Log into multiple accounts at once (with Single-Sign On support)
@@ -39,15 +39,15 @@ Highlights:
 ## Contents
 
 <!-- toc -->
-* [Installation instructions](#installation-instructions)
+* [Installation Instructions](#installation-instructions)
 * [Security Best Practices](#security-best-practices)
 * [Contributing](#contributing)
 * [Frequently Asked Questions](#frequently-asked-questions)
-* [The origin of Fractal](#the-origin-of-fractal)
+* [The Origin of Fractal](#the-origin-of-fractal)
 * [Code of Conduct](#code-of-conduct)
 <!-- /toc -->
 
-## Installation instructions
+## Installation Instructions
 
 Flatpak is the recommended installation method. For installing any of our Flatpaks, you need to
 make sure your system is [set up with the Flathub remote](https://flathub.org/setup).
@@ -55,7 +55,7 @@ make sure your system is [set up with the Flathub remote](https://flathub.org/se
 All of our Flatpaks can be installed in parallel, offering you the opportunity to try out the
 development version while keeping the stable release around for daily use.
 
-### Stable version
+### Stable Version
 
 The current stable version is 14.1 (released July 19th 2026).
 
@@ -70,7 +70,7 @@ You can get the official Fractal Flatpak from Flathub.
 />
 </a>
 
-### Beta version
+### Beta Version
 
 The current beta version is 14.1 (same as stable).
 
@@ -125,7 +125,7 @@ flatpak make-current org.gnome.Fractal beta
 _Note that you can go back to using the stable version by default by using the same command and
 replacing `beta` with `stable`._
 
-### Development version
+### Development Version
 
 If you want to try the upcoming version of Fractal without building it yourself, it is available as
 a nightly Flatpak in [the gnome-nightly repo](https://nightly.gnome.org/).
@@ -178,7 +178,7 @@ following dependencies at runtime:
     of the camera.
   * libgstpipewire with the `pipewiredeviceprovider`: used to list and access the cameras.
 
-#### Storing secrets
+#### Storing Secrets
 
 Fractal doesn’t store your **password**, but it stores your **access token** and the **passphrase**
 used to encrypt the database and the local cache.
@@ -245,7 +245,7 @@ Can I run Fractal with the window closed?
   the GNOME guidelines and paradigms. This will be revisited [if or when GNOME gets a proper paradigm
   to interact with apps running in the background](https://gitlab.gnome.org/World/fractal/-/issues/228#note_2054826).
 
-## The origin of Fractal
+## The Origin of Fractal
 
 The current version is a complete rewrite of Fractal built on top of the
 [matrix-rust-sdk](https://github.com/matrix-org/matrix-rust-sdk) using [GTK4](https://gtk.org/).

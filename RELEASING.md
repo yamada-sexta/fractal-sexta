@@ -1,11 +1,11 @@
 # Releasing Fractal
 
-## Before making a new release
+## Before Making a New Release
 
 * Update the dependencies (crates or system libraries) and migrate from deprecated APIs.
 * Make the `build-stable` CI jobs use the latest stable GNOME runtime.
 
-## Making a new stable release
+## Making a New Stable Release
 
 1. If this is a new major version, create a new `fractal-M` branch, where `M` is the major version
    number.
@@ -18,14 +18,14 @@
 6. [Publish the new version on Flathub and Flathub beta](#publishing-a-version-on-flathub).
 7. [Get the stable branch added to Damned Lies](#getting-a-branch-added-to-damned-lies).
 
-## Making a new beta release
+## Making a New Beta Release
 
 1. Create a [release merge request](#release-merge-request-content) against `main`.
 2. After the MR is merged, [create a tag](#creating-a-signed-tag) on the last commit of `main`.
 3. Create a release on GitLab for that tag.
 4. [Publish the new version on Flathub beta](#publishing-a-version-on-flathub).
 
-## Release merge request content
+## Release Merge Request Content
 
 _To represent conditional list items, this section will start items with "**stable.**" to mean "if
 this is a stable release"._
@@ -37,17 +37,17 @@ Make a single release commit containing the following changes:
     `major_version.pre_release_version` format.
   * Change the `major_version` and `pre_release_version` on L13-14. For stable versions,
     `pre_release_version` should be an empty string.
-* Update `/Cargo.toml`: change the `version`, using a semver format.
+* Update `/Cargo.toml`: change the `version`, using a SemVer format.
 * Update `/README.md`:
-  * **stable.** update the current stable version and its release date.
+  * **stable.** Update the current stable version and its release date.
   * Update the current beta version. For stable versions, put `(same as stable)` instead of the
     release date.
 * Update `/data/org.gnome.Fractal.metainfo.xml.in.in`:
   * Add a new `release` entry at the top of the `releases`:
     * Its `version` should use the `major_version~pre_release_version` format.
     * For stable versions, its `type` should be `stable`, otherwise it should be `development`.
-  * **stable.** remove all the `development` entries.
-  * **stable.** update the paths of the screenshots to point to the major version branch.
+  * **stable.** Remove all the `development` entries.
+  * **stable.** Update the paths of the screenshots to point to the major version branch.
 * **stable.** If there were visible changes in the UI, update the screenshots in `/screenshots`.
   They can be generated with the [fractal-screenshots](https://gitlab.gnome.org/kcommaille/fractal-screenshots)
   repository and should follow [Flathub's quality guidelines](https://docs.flathub.org/docs/for-app-authors/metainfo-guidelines/quality-guidelines#screenshots).
@@ -55,7 +55,7 @@ Make a single release commit containing the following changes:
 A good practice in this merge request is to launch the `build-stable` CI jobs to make sure that
 Fractal builds with the stable Flatpak runtime.
 
-## Creating a signed tag
+## Creating a Signed Tag
 
 Creating a signed tag is not mandatory but is good practice. To do so, use this command:
 
@@ -68,7 +68,7 @@ With `V` being the version to tag, in the format `major_version.pre_release_vers
 You will be prompted for a tag message. This message doesn't really matter so something like
 `Release Fractal V` should suffice.
 
-## Publishing a version on Flathub
+## Publishing a Version on Flathub
 
 Publishing a version of Fractal on Flathub is done via its [Flathub repository on GitHub](https://github.com/flathub/org.gnome.Fractal/).
 A permission from the Flathub team granted to your GitHub account is necessary to merge PRs on this
@@ -99,7 +99,7 @@ repository, but anyone can open a PR.
 More details about these steps can be found in the Flathub docs about [maintenance](https://docs.flathub.org/docs/for-app-authors/maintenance)
 and [updates](https://docs.flathub.org/docs/for-app-authors/updates).
 
-## Getting a branch added to Damned Lies
+## Getting a Branch Added to Damned Lies
 
 Damned Lies is the GNOME translation management platform. It provides translation workflows, but
 also statistics. Even though we don’t publish any release from stable branches after the initial
