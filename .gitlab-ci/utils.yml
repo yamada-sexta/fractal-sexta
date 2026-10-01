@@ -14,3 +14,13 @@
     - mv $TMP_FILE ${MANIFEST_PATH}
     # Use meson's build-env profile.
     - sed -i "s|-Dprofile=development|-Dprofile=build-env|g" ${MANIFEST_PATH}
+
+# A base image to run commands outside of a Flatpak sandbox.
+.dev_image:
+  image: 'ghcr.io/gtk-rs/gtk4-rs/gtk4:latest'
+  interruptible: true
+  before_script:
+    # Print info about the container image.
+    - cat /etc/os-release
+    # Install the necessary dependencies.
+    - dnf install -y glycin-gtk4-devel gstreamer1-plugins-bad-free-devel gtksourceview5-devel libshumate-devel libadwaita-devel libwebp-devel sqlite-devel

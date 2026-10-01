@@ -32,40 +32,37 @@ lint-metainfo:
 # Run the Rust tests.
 rust-tests:
   stage: test
-  image: 'quay.io/gnome_infrastructure/gnome-runtime-images:gnome-master'
-  tags:
-    - flatpak
-  interruptible: true
+  extends:
+    - .dev_image
   script:
-    # Create a temporary file.
-    - TMP_FILE=$(mktemp)
-    # Add a module for nextest to the Flatpak manifest and write it to the temporary file.
-    - jq --slurpfile nextest .gitlab-ci/nextest.module.json '.modules = [$nextest[], .modules[]]' ${MANIFEST_PATH} > ${TMP_FILE}
-    # Replace the manifest with the temporary file.
-    - mv $TMP_FILE ${MANIFEST_PATH}
-    # Initialize the Flatpak sandbox.
-    - flatpak-builder --keep-build-dirs --user --disable-rofiles-fuse --stop-at=${FLATPAK_MODULE} flatpak_app --repo=repo ${BRANCH:+--default-branch=$BRANCH} ${MANIFEST_PATH}
-    # Run the tests.
-    - echo "meson compile src/cargo-test" | flatpak-builder --disable-rofiles-fuse --build-shell=${FLATPAK_MODULE} flatpak_app ${MANIFEST_PATH}
+    # Install the stable Rust toolchain.
+    - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    - source $HOME/.cargo/env
+    # Install cargo-nextest and grass with cargo-binstall
+    - curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | sh
+    - cargo binstall cargo-nextest grass
+    # Run the tests with a headless wayland display server.
+    - dnf install -y dbus-daemon mutter
+    - export XDG_RUNTIME_DIR="$(mktemp -p $(pwd) -d xdg-runtime-XXXXXX)"
+    - meson setup _build
+    - dbus-run-session --
+      mutter --headless --wayland --no-x11 --virtual-monitor 1024x768 --
+      meson compile -C _build src/cargo-test
   dependencies: []
   artifacts:
     reports:
-      junit: '.flatpak-builder/build/${FLATPAK_MODULE}/_flatpak_build/src/junit.xml'
+      junit: '_build/src/junit.xml'
 
 # Build the docs and make sure that there are no errors.
 build-docs:
   stage: test
-  image: 'ghcr.io/gtk-rs/gtk4-rs/gtk4:latest'
-  interruptible: true
+  extends:
+    - .dev_image
   script:
-    # Print info about the container image.
-    - cat /etc/os-release
     # Install the nightly Rust toolchain.
     - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain none -y
     - source $HOME/.cargo/env
     - rustup toolchain install nightly-${RUST_NIGHTLY_VERSION} --profile minimal --allow-downgrade -c rust-docs
-    # Install the necessary dependencies.
-    - dnf install -y glycin-gtk4-devel gstreamer1-plugins-bad-free-devel gtksourceview5-devel libshumate-devel libwebp-devel sqlite-devel
     # Build the docs.
     - meson setup -Dprofile=build-env _build
     - meson compile -C _build src/cargo-doc
