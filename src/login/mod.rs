@@ -851,3 +851,17 @@ fn client_registration_data() -> ClientRegistrationData {
         .expect("client metadata should serialize to JSON successfully")
         .into()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::Login;
+    use crate::utils::tests::load_gresources;
+
+    #[gtk::test]
+    fn construct() {
+        // Check that the GObject is constructed successfully, i.e. the template file is
+        // valid.
+        load_gresources();
+        Login::new();
+    }
+}
