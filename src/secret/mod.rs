@@ -1,6 +1,6 @@
 //! API to store the data of a session in a secret store on the system.
 
-use std::{fmt, path::PathBuf};
+use std::{cfg_select, fmt, path::PathBuf};
 
 use gtk::glib;
 use matrix_sdk::{Client, SessionMeta, SessionTokens, authentication::oauth::ClientId};
@@ -31,11 +31,12 @@ pub(crate) const SESSION_ID_LENGTH: usize = 8;
 /// The length of a passphrase, in chars or bytes as the string is ASCII.
 pub(crate) const PASSPHRASE_LENGTH: usize = 30;
 
-cfg_if::cfg_if! {
-    if #[cfg(target_os = "linux")] {
+cfg_select! {
+    target_os = "linux" => {
         /// The secret API.
         pub(crate) type Secret = linux::LinuxSecret;
-    } else {
+    }
+    _ => {
         /// The secret API.
         pub(crate) type Secret = unimplemented::UnimplementedSecret;
     }

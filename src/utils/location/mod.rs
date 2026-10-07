@@ -1,16 +1,19 @@
 //! Location API.
 
+use std::cfg_select;
+
 use futures_util::Stream;
 use geo_uri::GeoUri;
 
 #[cfg(target_os = "linux")]
 mod linux;
 
-cfg_if::cfg_if! {
-    if #[cfg(target_os = "linux")] {
+cfg_select! {
+    target_os = "linux" => {
         /// The secret API.
         pub(crate) type Location = linux::LinuxLocation;
-    } else {
+    }
+    _ => {
         /// The secret API.
         pub(crate) type Location = unimplemented::UnimplementedLocation;
     }

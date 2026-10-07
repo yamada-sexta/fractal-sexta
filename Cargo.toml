@@ -30,7 +30,6 @@ codegen-units = 16
 [dependencies]
 as_variant = "1"
 blurhash = "0.2"
-cfg-if = "1"
 eyeball = "0.8"
 futures-channel = "0.3"
 futures-util = "0.3"

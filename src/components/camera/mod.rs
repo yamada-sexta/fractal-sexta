@@ -13,11 +13,12 @@ use self::{
     },
 };
 
-cfg_if::cfg_if! {
-    if #[cfg(target_os = "linux")] {
+cfg_select! {
+    target_os = "linux" => {
         /// The camera API.
         pub(crate) type Camera = linux::LinuxCamera;
-    } else {
+    }
+    _ => {
         /// The camera API.
         pub(crate) type Camera = unimplemented::UnimplementedCamera;
     }
