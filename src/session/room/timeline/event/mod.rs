@@ -187,7 +187,7 @@ mod imp {
             let item = Arc::new(item);
             let prev_item = self.item.replace(Some(item.clone()));
 
-            self.reactions.update(item.content().reactions());
+            self.reactions.update(item.reactions());
             self.update_read_receipts(item.read_receipts());
 
             let prev_source = prev_item.as_ref().and_then(|i| i.original_json());

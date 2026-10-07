@@ -51,17 +51,15 @@ mod imp {
 
     impl ReactionList {
         /// Update the reaction list with the given reactions.
-        pub(super) fn update(&self, new_reactions: Option<&ReactionsByKeyBySender>) {
+        pub(super) fn update(&self, new_reactions: &ReactionsByKeyBySender) {
             let mut pos = 0usize;
 
             let (removed, added) = {
                 let mut reactions = self.reactions.borrow_mut();
 
                 // Update the first groups with identical keys.
-                for ((new_key, group_reactions), (old_key, group)) in new_reactions
-                    .iter()
-                    .flat_map(|new_reactions| new_reactions.iter())
-                    .zip(reactions.iter())
+                for ((new_key, group_reactions), (old_key, group)) in
+                    new_reactions.iter().zip(reactions.iter())
                 {
                     if new_key == old_key {
                         group.update(group_reactions);
@@ -79,23 +77,16 @@ mod imp {
                 }
 
                 // Add new groups for the new keys, if any.
-                let new_len = new_reactions
-                    .map(|new_reactions| new_reactions.len())
-                    .unwrap_or_default();
-                let added = new_len - pos;
+                let added = new_reactions.len() - pos;
                 if added > 0 {
                     let user = self.user.get().expect("user should be initialized");
-                    reactions.extend(
-                        new_reactions
-                            .iter()
-                            .flat_map(|new_reactions| new_reactions.iter())
-                            .skip(pos)
-                            .map(|(key, group_reactions)| {
-                                let group = ReactionGroup::new(key, user);
-                                group.update(group_reactions);
-                                (key.clone(), group)
-                            }),
-                    );
+                    reactions.extend(new_reactions.iter().skip(pos).map(
+                        |(key, group_reactions)| {
+                            let group = ReactionGroup::new(key, user);
+                            group.update(group_reactions);
+                            (key.clone(), group)
+                        },
+                    ));
                 }
 
                 (removed, added)
@@ -130,7 +121,7 @@ impl ReactionList {
     }
 
     /// Update the reaction list with the given reactions.
-    pub(crate) fn update(&self, new_reactions: Option<&ReactionsByKeyBySender>) {
+    pub(crate) fn update(&self, new_reactions: &ReactionsByKeyBySender) {
         self.imp().update(new_reactions);
     }
 

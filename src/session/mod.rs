@@ -461,12 +461,6 @@ mod imp {
             let obj_weak = glib::SendWeakRef::from(self.obj().downgrade());
 
             let handle = spawn_tokio!(async move {
-                // Make sure that the event cache is subscribed to sync responses to benefit
-                // from it.
-                if let Err(error) = client.event_cache().subscribe() {
-                    error!("Could not subscribe event cache to sync responses: {error}");
-                }
-
                 // TODO: only create the filter once and reuse it in the future
                 let filter = assign!(FilterDefinition::default(), {
                     room: assign!(RoomFilter::with_lazy_loading(), {
