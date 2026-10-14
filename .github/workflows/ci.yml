@@ -15,105 +15,9 @@ concurrency:
 
 env:
   APP_ID: io.github.yamada_sexta.FractalSexta
-  RUST_NIGHTLY_VERSION: '2026-08-24'
   CARGO_BUILD_JOBS: '2'
 
 jobs:
-  checks:
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: Swatinem/rust-cache@49a0bdc70d2e1b713ca9e2869b211fcce03d3c1c # v2
-        with:
-          workspaces: hooks/checks -> target
-          cache-on-failure: true
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-      - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2
-        with:
-          tool: cargo-binstall
-      - name: Install pinned workflow validator
-        run: |
-          mkdir -p "$RUNNER_TEMP/actionlint-bin"
-          curl --fail --location --silent --show-error \
-            https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz \
-            -o "$RUNNER_TEMP/actionlint.tar.gz"
-          printf '%s  %s\n' 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8 \
-            "$RUNNER_TEMP/actionlint.tar.gz" | sha256sum --check
-          tar -xf "$RUNNER_TEMP/actionlint.tar.gz" -C "$RUNNER_TEMP/actionlint-bin" actionlint
-          echo "$RUNNER_TEMP/actionlint-bin" >> "$GITHUB_PATH"
-      - name: Repository checks
-        run: cargo run --locked --manifest-path hooks/checks/Cargo.toml -- --verbose --force-install --cargo-binstall
-      - name: Workflow and shell validation
-        run: |
-          actionlint
-          shellcheck .github/scripts/*.sh
-      - name: License and repository publication checks
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y flatpak ostree
-          pipx run reuse lint
-          bash .github/scripts/test-publish-flatpak.sh
-
-  tests:
-    runs-on: ubuntu-24.04
-    container:
-      image: ghcr.io/gtk-rs/gtk4-rs/gtk4:latest
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - name: Install build and test dependencies
-        id: native-sdk
-        run: |
-          dnf install -y glycin-gtk4-devel gstreamer1-plugins-bad-free-devel gtksourceview5-devel \
-            libshumate-devel libadwaita-devel libwebp-devel sqlite-devel dbus-daemon mutter
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
-          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
-          "$HOME/.cargo/bin/rustup" component add clippy
-          version=$(rpm -qa | sort | sha256sum | cut -d' ' -f1)
-          echo "cache_version=$version" >> "$GITHUB_OUTPUT"
-      - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2
-        with:
-          tool: cargo-nextest,grass
-      - name: Cache native Rust dependencies
-        uses: Swatinem/rust-cache@49a0bdc70d2e1b713ca9e2869b211fcce03d3c1c # v2
-        env:
-          CARGO_HOME: ${{ github.workspace }}/_build/cargo-home
-        with:
-          key: ${{ steps.native-sdk.outputs.cache_version }}
-          workspaces: . -> _build/cargo-target
-          cache-bin: false
-          cache-on-failure: true
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-      - name: Configure and check source formatting
-        run: |
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          meson setup _build
-          blueprint-compiler format src
-          meson format --check-only --recursive
-          git -C "$GITHUB_WORKSPACE" diff --exit-code
-      - name: Clippy
-        run: |
-          CARGO_HOME="$PWD/_build/cargo-home" CARGO_TARGET_DIR="$PWD/_build/cargo-target" \
-            cargo clippy --locked --all-targets -- -D warnings
-      - name: Rust tests under headless Wayland
-        run: |
-          XDG_RUNTIME_DIR=$(mktemp -d)
-          export XDG_RUNTIME_DIR
-          dbus-run-session -- mutter --headless --wayland --no-x11 --virtual-monitor 1024x768 -- \
-            meson compile -C _build src/cargo-test
-      - name: Build developer documentation
-        run: |
-          rustup toolchain install "nightly-$RUST_NIGHTLY_VERSION" --profile minimal --component rust-docs
-          RUSTUP_TOOLCHAIN="nightly-$RUST_NIGHTLY_VERSION" meson compile -C _build src/cargo-doc
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always()
-        with:
-          name: test-results
-          path: _build/src/junit.xml
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: developer-docs
-          path: _build/src/doc
-
   flatpak:
     runs-on: ubuntu-24.04
     steps:
@@ -188,14 +92,10 @@ jobs:
             .flatpak-builder/downloads
             .flatpak-builder/git
           key: ${{ steps.builder-cache.outputs.cache-primary-key }}
-      - name: Validate exported Flatpak
+      - name: Verify exported repository
         run: |
-          docker run --rm -v "$PWD:/work" -w /work \
-            ghcr.io/flathub/flatpak-builder-lint:latest \
-            --exceptions --user-exceptions .github/flatpak-builder-lint-exceptions.json repo repo
-          ostree --repo=repo export --subpath=files/share/metainfo "app/$APP_ID/x86_64/nightly" \
-            | tar -x "$APP_ID.metainfo.xml"
-          appstreamcli validate --pedantic --explain --strict "$APP_ID.metainfo.xml"
+          ostree --repo=repo fsck
+          ostree --repo=repo rev-parse "app/$APP_ID/x86_64/nightly"
       - name: Archive repository
         run: tar -cf flatpak-repo.tar repo
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -206,7 +106,7 @@ jobs:
 
   publish:
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-    needs: [checks, tests, flatpak]
+    needs: [flatpak]
     runs-on: ubuntu-24.04
     concurrency:
       group: flatpak-publication

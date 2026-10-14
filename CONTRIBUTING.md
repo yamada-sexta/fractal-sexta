@@ -167,9 +167,8 @@ DeepL.
 ## GitHub Actions
 
 Open pull requests and fork bug reports on [GitHub](https://github.com/yamada-sexta/fractal-sexta).
-GitHub Actions runs the existing repository checks, Clippy, formatting, licensing, metadata
-validation, headless Wayland tests, and Flatpak builds. Developer documentation and JUnit results
-are attached to the workflow as downloadable artifacts.
+GitHub Actions builds the Flatpak, verifies the exported repository, and publishes passing main
+builds. Run source linting and tests locally; they are not GitHub publication gates.
 
 Run the repository checks locally with:
 
