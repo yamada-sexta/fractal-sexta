@@ -19,6 +19,7 @@
         "--env=RUST_BACKTRACE=1"
     ],
     "build-options": {
+        "libdir": "/app/lib",
         "append-path": "/usr/lib/sdk/rust-stable/bin",
         "env": {
             "RUSTFLAGS": "-C link-arg=-fuse-ld=mold --cfg=ruma_identifiers_storage=\"ThinArc\""

@@ -60,11 +60,15 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Install build and test dependencies
+        id: native-sdk
         run: |
           dnf install -y glycin-gtk4-devel gstreamer1-plugins-bad-free-devel gtksourceview5-devel \
             libshumate-devel libadwaita-devel libwebp-devel sqlite-devel dbus-daemon mutter
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          "$HOME/.cargo/bin/rustup" component add clippy
+          version=$(rpm -qa | sort | sha256sum | cut -d' ' -f1)
+          echo "cache_version=$version" >> "$GITHUB_OUTPUT"
       - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2
         with:
           tool: cargo-nextest,grass
@@ -73,6 +77,7 @@ jobs:
         env:
           CARGO_HOME: ${{ github.workspace }}/_build/cargo-home
         with:
+          key: ${{ steps.native-sdk.outputs.cache_version }}
           workspaces: . -> _build/cargo-target
           cache-bin: false
           save-if: ${{ github.ref == 'refs/heads/main' }}
@@ -89,7 +94,8 @@ jobs:
             cargo clippy --locked --all-targets -- -D warnings
       - name: Rust tests under headless Wayland
         run: |
-          export XDG_RUNTIME_DIR="$(mktemp -d)"
+          XDG_RUNTIME_DIR=$(mktemp -d)
+          export XDG_RUNTIME_DIR
           dbus-run-session -- mutter --headless --wayland --no-x11 --virtual-monitor 1024x768 -- \
             meson compile -C _build src/cargo-test
       - name: Build developer documentation
@@ -237,7 +243,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y flatpak ostree
-          export GNUPGHOME="$(mktemp -d)"
+          GNUPGHOME=$(mktemp -d)
+          export GNUPGHOME
           trap 'gpgconf --kill gpg-agent; rm -rf "$GNUPGHOME"' EXIT
           test -n "$FLATPAK_GPG_PRIVATE_KEY"
           printf '%s\n' "$FLATPAK_GPG_PRIVATE_KEY" | gpg --batch --import
