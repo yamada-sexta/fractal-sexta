@@ -15,7 +15,7 @@ concurrency:
 
 env:
   APP_ID: io.github.yamada_sexta.FractalSexta
-  CARGO_BUILD_JOBS: '2'
+  CARGO_BUILD_JOBS: '4'
 
 jobs:
   flatpak:
@@ -37,11 +37,15 @@ jobs:
             --arg cache "$RUNNER_TEMP/fractal-cargo-cache" '
             .id = $id |
             .branch = "nightly" |
+            .modules[-1]["run-tests"] = false |
             .modules[-1]["config-opts"] = ["-Dprofile=default", "-Dversion-suffix=" + $version,
               "-Dcargo-cache-dir=" + $cache] |
             .modules[-1]["build-options"]["build-args"] = ["--share=network", "--filesystem=" + $cache] |
-            .["build-options"].env.CARGO_BUILD_JOBS = "2" |
-            .["build-options"].env.CARGO_PROFILE_RELEASE_DEBUG = "false"
+            .["build-options"].env.CARGO_BUILD_JOBS = "4" |
+            .["build-options"].env.CARGO_PROFILE_RELEASE_DEBUG = "false" |
+            .["build-options"].env.CARGO_PROFILE_RELEASE_LTO = "false" |
+            .["build-options"].env.CARGO_PROFILE_RELEASE_CODEGEN_UNITS = "16" |
+            .["build-options"].env.CARGO_PROFILE_RELEASE_INCREMENTAL = "true"
           ' build-aux/io.github.yamada_sexta.FractalSexta.Devel.json > build-aux/fractal-sexta-nightly.json
       - name: Install SDK and identify cache version
         id: sdk
@@ -73,7 +77,7 @@ jobs:
             flatpak-builder-${{ runner.os }}-${{ steps.sdk.outputs.cache_version }}-
       - name: Build x86_64 Flatpak
         run: |
-          flatpak-builder --user --assumeyes --disable-rofiles-fuse --force-clean --rebuild-on-sdk-change --jobs=2 \
+          flatpak-builder --user --assumeyes --disable-rofiles-fuse --force-clean --rebuild-on-sdk-change --jobs=4 \
             --install-deps-from=gnome-nightly --install-deps-from=flathub \
             --repo=repo --subject="Fractal Sexta $GITHUB_SHA" \
             flatpak_app build-aux/fractal-sexta-nightly.json
