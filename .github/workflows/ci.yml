@@ -16,6 +16,7 @@ concurrency:
 env:
   APP_ID: io.github.yamada_sexta.FractalSexta
   CARGO_BUILD_JOBS: '4'
+  RUST_RELEASE_TOOLCHAIN: nightly-2026-08-24
 
 jobs:
   flatpak:
@@ -30,17 +31,35 @@ jobs:
           sudo apt-get install -y flatpak flatpak-builder ostree appstream desktop-file-utils
           flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
           flatpak remote-add --user --if-not-exists gnome-nightly https://nightly.gnome.org/gnome-nightly.flatpakrepo
+      - name: Cache release Rust toolchain
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ${{ runner.temp }}/fractal-rust-toolchain
+          key: release-rust-${{ runner.os }}-${{ runner.arch }}-${{ env.RUST_RELEASE_TOOLCHAIN }}
+      - name: Prepare release Rust toolchain
+        id: rust
+        env:
+          RUSTUP_HOME: ${{ runner.temp }}/fractal-rust-toolchain
+        run: |
+          rustup toolchain install "$RUST_RELEASE_TOOLCHAIN" --profile minimal --no-self-update
+          toolchain=$(dirname "$(dirname "$(rustup which --toolchain "$RUST_RELEASE_TOOLCHAIN" cargo)")")
+          "$toolchain/bin/rustc" --version
+          echo "path=$toolchain" >> "$GITHUB_OUTPUT"
       - name: Prepare rolling release manifest
         run: |
           mkdir -p "$RUNNER_TEMP/fractal-cargo-cache"
           jq --arg id "$APP_ID" --arg version "sexta.${GITHUB_RUN_NUMBER}.${GITHUB_SHA:0:12}" \
-            --arg cache "$RUNNER_TEMP/fractal-cargo-cache" '
+            --arg cache "$RUNNER_TEMP/fractal-cargo-cache" --arg toolchain "${{ steps.rust.outputs.path }}" '
             .id = $id |
             .branch = "nightly" |
             .modules[-1]["run-tests"] = false |
             .modules[-1]["config-opts"] = ["-Dprofile=default", "-Dversion-suffix=" + $version,
               "-Dcargo-cache-dir=" + $cache] |
-            .modules[-1]["build-options"]["build-args"] = ["--share=network", "--filesystem=" + $cache] |
+            .modules[-1]["build-options"]["build-args"] = ["--share=network", "--filesystem=" + $cache,
+              "--filesystem=" + $toolchain + ":ro"] |
+            .modules[-1]["build-options"]["prepend-path"] = $toolchain + "/bin" |
+            .modules[-1]["build-options"].env.RUSTFLAGS = (.["build-options"].env.RUSTFLAGS +
+              " -Zshare-generics=y -Zthreads=4") |
             .["build-options"].env.CARGO_BUILD_JOBS = "4" |
             .["build-options"].env.CARGO_PROFILE_RELEASE_DEBUG = "false" |
             .["build-options"].env.CARGO_PROFILE_RELEASE_LTO = "false" |
@@ -60,10 +79,10 @@ jobs:
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ${{ runner.temp }}/fractal-cargo-cache
-          key: flatpak-cargo-${{ runner.os }}-${{ steps.sdk.outputs.cache_version }}-${{ hashFiles('Cargo.lock', '.cargo/config.toml') }}-${{ github.sha }}
+          key: flatpak-cargo-${{ runner.os }}-${{ steps.sdk.outputs.cache_version }}-${{ env.RUST_RELEASE_TOOLCHAIN }}-${{ hashFiles('Cargo.lock', '.cargo/config.toml') }}-${{ github.sha }}
           restore-keys: |
-            flatpak-cargo-${{ runner.os }}-${{ steps.sdk.outputs.cache_version }}-${{ hashFiles('Cargo.lock', '.cargo/config.toml') }}-
-            flatpak-cargo-${{ runner.os }}-${{ steps.sdk.outputs.cache_version }}-
+            flatpak-cargo-${{ runner.os }}-${{ steps.sdk.outputs.cache_version }}-${{ env.RUST_RELEASE_TOOLCHAIN }}-${{ hashFiles('Cargo.lock', '.cargo/config.toml') }}-
+            flatpak-cargo-${{ runner.os }}-${{ steps.sdk.outputs.cache_version }}-${{ env.RUST_RELEASE_TOOLCHAIN }}-
       - name: Cache Flatpak dependency modules and downloads
         id: builder-cache
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
@@ -75,6 +94,10 @@ jobs:
           key: flatpak-builder-${{ runner.os }}-${{ steps.sdk.outputs.cache_version }}-${{ hashFiles('build-aux/*.json') }}-${{ github.sha }}
           restore-keys: |
             flatpak-builder-${{ runner.os }}-${{ steps.sdk.outputs.cache_version }}-
+      - name: Reduce release cache size
+        run: |
+          mkdir -p "$RUNNER_TEMP/fractal-cargo-cache/home"
+          printf '[unstable]\nembed-metadata = "no"\n' > "$RUNNER_TEMP/fractal-cargo-cache/home/config.toml"
       - name: Build x86_64 Flatpak
         run: |
           flatpak-builder --user --assumeyes --disable-rofiles-fuse --force-clean --rebuild-on-sdk-change --jobs=4 \

@@ -13,7 +13,8 @@
 </div>
 
 Fractal Sexta is a personal fork of [Fractal](https://gitlab.gnome.org/World/fractal/), the GNOME
-Matrix client written in Rust. This project exist due to the extreme Anti-AI policies and the human slop codebase.
+Matrix client written in Rust. This project exist due to the extreme Anti-AI policies and the human
+slop codebase.
 
 <div align="center">
 <img
