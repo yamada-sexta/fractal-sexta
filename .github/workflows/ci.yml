@@ -78,10 +78,11 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Configure and check source formatting
         run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           meson setup _build
           blueprint-compiler format src
           meson format --check-only --recursive
-          git diff --exit-code
+          git -C "$GITHUB_WORKSPACE" diff --exit-code
       - name: Clippy
         run: |
           CARGO_HOME="$PWD/_build/cargo-home" CARGO_TARGET_DIR="$PWD/_build/cargo-target" \
@@ -139,7 +140,8 @@ jobs:
           version=$(flatpak list --user --runtime --columns=ref,active | sort | sha256sum | cut -d' ' -f1)
           echo "cache_version=$version" >> "$GITHUB_OUTPUT"
       - name: Cache Flatpak Cargo dependencies and build outputs
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        id: cargo-cache
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ${{ runner.temp }}/fractal-cargo-cache
           key: flatpak-cargo-${{ runner.os }}-${{ steps.sdk.outputs.cache_version }}-${{ hashFiles('Cargo.lock', '.cargo/config.toml') }}-${{ github.sha }}
@@ -147,7 +149,8 @@ jobs:
             flatpak-cargo-${{ runner.os }}-${{ steps.sdk.outputs.cache_version }}-${{ hashFiles('Cargo.lock', '.cargo/config.toml') }}-
             flatpak-cargo-${{ runner.os }}-${{ steps.sdk.outputs.cache_version }}-
       - name: Cache Flatpak dependency modules and downloads
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        id: builder-cache
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
             .flatpak-builder/cache
@@ -162,6 +165,21 @@ jobs:
             --install-deps-from=gnome-nightly --install-deps-from=flathub \
             --repo=repo --subject="Fractal Sexta $GITHUB_SHA" \
             flatpak_app build-aux/fractal-sexta-nightly.json
+      - name: Save Flatpak Cargo cache
+        if: steps.cargo-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ${{ runner.temp }}/fractal-cargo-cache
+          key: ${{ steps.cargo-cache.outputs.cache-primary-key }}
+      - name: Save Flatpak builder cache
+        if: steps.builder-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            .flatpak-builder/cache
+            .flatpak-builder/downloads
+            .flatpak-builder/git
+          key: ${{ steps.builder-cache.outputs.cache-primary-key }}
       - name: Validate exported Flatpak
         run: |
           docker run --rm -v "$PWD:/work" -w /work \
