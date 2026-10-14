@@ -26,6 +26,7 @@ jobs:
       - uses: Swatinem/rust-cache@49a0bdc70d2e1b713ca9e2869b211fcce03d3c1c # v2
         with:
           workspaces: hooks/checks -> target
+          cache-on-failure: true
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2
         with:
@@ -80,6 +81,7 @@ jobs:
           key: ${{ steps.native-sdk.outputs.cache_version }}
           workspaces: . -> _build/cargo-target
           cache-bin: false
+          cache-on-failure: true
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Configure and check source formatting
         run: |
@@ -133,7 +135,7 @@ jobs:
             .branch = "nightly" |
             .modules[-1]["config-opts"] = ["-Dprofile=default", "-Dversion-suffix=" + $version,
               "-Dcargo-cache-dir=" + $cache] |
-            .modules[-1]["build-options"]["build-args"] = ["--filesystem=" + $cache] |
+            .modules[-1]["build-options"]["build-args"] = ["--share=network", "--filesystem=" + $cache] |
             .["build-options"].env.CARGO_BUILD_JOBS = "2" |
             .["build-options"].env.CARGO_PROFILE_RELEASE_DEBUG = "false"
           ' build-aux/io.github.yamada_sexta.FractalSexta.Devel.json > build-aux/fractal-sexta-nightly.json
@@ -172,13 +174,13 @@ jobs:
             --repo=repo --subject="Fractal Sexta $GITHUB_SHA" \
             flatpak_app build-aux/fractal-sexta-nightly.json
       - name: Save Flatpak Cargo cache
-        if: steps.cargo-cache.outputs.cache-hit != 'true'
+        if: ${{ !cancelled() && steps.sdk.conclusion == 'success' && steps.cargo-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ${{ runner.temp }}/fractal-cargo-cache
           key: ${{ steps.cargo-cache.outputs.cache-primary-key }}
       - name: Save Flatpak builder cache
-        if: steps.builder-cache.outputs.cache-hit != 'true'
+        if: ${{ !cancelled() && steps.sdk.conclusion == 'success' && steps.builder-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |

@@ -561,18 +561,6 @@ impl fmt::Display for AppProfile {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::AppProfile;
-
-    #[test]
-    fn profile_data_directories_are_separate_from_upstream() {
-        assert_eq!(AppProfile::Stable.dir_name(), "fractal-sexta");
-        assert_eq!(AppProfile::Beta.dir_name(), "fractal-sexta-beta");
-        assert_eq!(AppProfile::Devel.dir_name(), "fractal-sexta-devel");
-    }
-}
-
 /// The state of the network.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum NetworkState {
@@ -608,5 +596,17 @@ impl NetworkState {
 impl Default for NetworkState {
     fn default() -> Self {
         Self::Available(gio::NetworkConnectivity::Full)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AppProfile;
+
+    #[test]
+    fn profile_data_directories_are_separate_from_upstream() {
+        assert_eq!(AppProfile::Stable.dir_name(), "fractal-sexta");
+        assert_eq!(AppProfile::Beta.dir_name(), "fractal-sexta-beta");
+        assert_eq!(AppProfile::Devel.dir_name(), "fractal-sexta-devel");
     }
 }
