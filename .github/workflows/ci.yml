@@ -29,7 +29,17 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2
         with:
-          tool: cargo-binstall,actionlint
+          tool: cargo-binstall
+      - name: Install pinned workflow validator
+        run: |
+          mkdir -p "$RUNNER_TEMP/actionlint-bin"
+          curl --fail --location --silent --show-error \
+            https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz \
+            -o "$RUNNER_TEMP/actionlint.tar.gz"
+          printf '%s  %s\n' 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8 \
+            "$RUNNER_TEMP/actionlint.tar.gz" | sha256sum --check
+          tar -xf "$RUNNER_TEMP/actionlint.tar.gz" -C "$RUNNER_TEMP/actionlint-bin" actionlint
+          echo "$RUNNER_TEMP/actionlint-bin" >> "$GITHUB_PATH"
       - name: Repository checks
         run: cargo run --locked --manifest-path hooks/checks/Cargo.toml -- --verbose --force-install --cargo-binstall
       - name: Workflow and shell validation
