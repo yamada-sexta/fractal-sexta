@@ -98,7 +98,7 @@ mod tests {
 
         // Check that the variables were all replaced.
         assert_let!(LocalServerResponse::Html(html) = local_server_landing_page());
-        assert!(!html.is_empty());
+        assert_ne!(html, "");
         assert!(!html.contains("@app_name@"));
         assert!(!html.contains("@title@"));
         assert!(!html.contains("@message@"));
