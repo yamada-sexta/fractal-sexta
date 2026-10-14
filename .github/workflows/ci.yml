@@ -62,7 +62,7 @@ jobs:
               " -Zshare-generics=y -Zthreads=4") |
             .["build-options"].env.CARGO_BUILD_JOBS = "4" |
             .["build-options"].env.CARGO_PROFILE_RELEASE_DEBUG = "false" |
-            .["build-options"].env.CARGO_PROFILE_RELEASE_LTO = "false" |
+            .["build-options"].env.CARGO_PROFILE_RELEASE_LTO = "off" |
             .["build-options"].env.CARGO_PROFILE_RELEASE_CODEGEN_UNITS = "16" |
             .["build-options"].env.CARGO_PROFILE_RELEASE_INCREMENTAL = "true"
           ' build-aux/io.github.yamada_sexta.FractalSexta.Devel.json > build-aux/fractal-sexta-nightly.json
