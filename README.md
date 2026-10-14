@@ -188,4 +188,4 @@ The name Fractal was proposed by Regina Bíró.
 
 ## Code of Conduct
 
-Fractal follows the official [GNOME Code of Conduct](https://conduct.gnome.org/).
+Be nice to each other.
