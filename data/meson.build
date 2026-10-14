@@ -25,12 +25,8 @@ if desktop_file_validate.found()
 endif
 
 # Appdata
-if profile == 'Devel'
-    appstream_version = major_version
-    if pre_release_version != ''
-        appstream_version += '~' + pre_release_version
-    endif
-    appstream_version += '-' + devel_version
+if profile == 'Devel' or get_option('version-suffix') != ''
+    appstream_version = full_version
 
     development_release = '''
     <release version="@0@" type="snapshot" date="@1@">
@@ -69,6 +65,10 @@ endif
 gschema_conf = configuration_data()
 gschema_conf.set('app-id', application_id)
 gschema_conf.set('profile', profile)
+gschema_conf.set(
+    'settings-path',
+    '/' + application_id.replace('.', '/') + '/' + profile + '/',
+)
 gschema_conf.set('gettext-package', gettext_package)
 configure_file(
     input: '@0@.gschema.xml.in'.format(base_id),
@@ -82,7 +82,7 @@ if glib_compile_schemas.found()
     test(
         'validate-gschema',
         glib_compile_schemas,
-        args: ['--strict', '--dry-run', meson.current_source_dir()],
+        args: ['--strict', '--dry-run', meson.current_build_dir()],
     )
 endif
 

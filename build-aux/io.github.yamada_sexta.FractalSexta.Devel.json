@@ -1,5 +1,5 @@
 {
-    "id": "org.gnome.Fractal.Devel",
+    "id": "io.github.yamada_sexta.FractalSexta.Devel",
     "runtime": "org.gnome.Platform",
     "runtime-version": "master",
     "sdk": "org.gnome.Sdk",
@@ -45,7 +45,9 @@
                 "mkdir -p /app/bin",
                 "install -D ./target/release/grass /app/bin/"
             ],
-            "cleanup": ["*"],
+            "cleanup": [
+                "*"
+            ],
             "sources": [
                 {
                     "type": "git",

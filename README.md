@@ -1,25 +1,24 @@
-[![Our chat room](https://img.shields.io/matrix/fractal-gtk:matrix.org?color=blue&label=%23fractal%3Agnome.org&logo=matrix)](https://matrix.to/#/#fractal:gnome.org)
-[![Our Gitlab project](https://img.shields.io/badge/gitlab.gnome.org%2F-World%2FFractal-green?logo=gitlab)](https://gitlab.gnome.org/World/fractal/)
-[![Our documentation](https://img.shields.io/badge/%F0%9F%95%AE-Docs-B7410E?logo=rust)](https://world.pages.gitlab.gnome.org/fractal/)
-[![Official package](https://img.shields.io/flathub/downloads/org.gnome.Fractal?logo=flathub)](https://flathub.org/apps/org.gnome.Fractal)
+[![GitHub CI](https://github.com/yamada-sexta/fractal-sexta/actions/workflows/ci.yml/badge.svg)](https://github.com/yamada-sexta/fractal-sexta/actions/workflows/ci.yml)
+[![Upstream Fractal](https://img.shields.io/badge/upstream-Fractal-blue)](https://gitlab.gnome.org/World/fractal/)
 
 <div align="center">
 
 <img
-    src="https://gitlab.gnome.org/World/fractal/-/raw/main/data/icons/org.gnome.Fractal.svg"
+    src="data/icons/org.gnome.Fractal.svg"
     alt=""
 />
 
-# Fractal
+# Fractal Sexta
 
 </div>
 
-Fractal is a Matrix messaging app for GNOME written in Rust. Its interface is optimized for
-collaboration in large groups, such as free software projects, and will fit all screens, big or small.
+Fractal Sexta is a personal fork of [Fractal](https://gitlab.gnome.org/World/fractal/), the GNOME
+Matrix client written in Rust. The original project, artwork, translations, and contributor credits
+are retained. Fork development and distribution happen on GitHub; the existing GitLab CI is retained.
 
 <div align="center">
 <img
-    src="https://gitlab.gnome.org/World/fractal/raw/main/screenshots/main.png"
+    src="screenshots/main.png"
     alt="Fractal’s main window"
     width="882"
     height="672"
@@ -55,112 +54,41 @@ make sure your system is [set up with the Flathub remote](https://flathub.org/se
 All of our Flatpaks can be installed in parallel, offering you the opportunity to try out the
 development version while keeping the stable release around for daily use.
 
-### Stable version
+### Fractal Sexta rolling builds
 
-The current stable version is 14.1 (released July 19th 2026).
-
-You can get the official Fractal Flatpak from Flathub.
-
-<a href="https://flathub.org/apps/details/org.gnome.Fractal">
-<img
-    src="https://flathub.org/assets/badges/flathub-badge-i-en.svg"
-    alt="Download Fractal on Flathub"
-    width="240px"
-    height="80px"
-/>
-</a>
-
-### Beta version
-
-The current beta version is 14.1 (same as stable).
-
-It is available as a Flatpak on Flathub Beta.
-
-To get it, first set up the Flathub Beta remote:
-
-<a href="https://flathub.org/beta-repo/flathub-beta.flatpakrepo">
-<img
-    src="https://gitlab.gnome.org/World/fractal/uploads/81944cf92504343a03121a58722345a2/flathub-beta-badge.svg"
-    alt="Add Flathub Beta repository"
-    width="240px"
-    height="80px"
-/>
-</a>
-
-Then install the application.
-
-<a href="https://flathub.org/beta-repo/appstream/org.gnome.Fractal.flatpakref">
-<img
-    src="https://gitlab.gnome.org/World/fractal/uploads/31a40da5d71a30c47f135e78ffef3df5/fractal-beta-badge.svg"
-    alt="Download Fractal Beta"
-    width="240px"
-    height="80px"
-/>
-</a>
-
-Or from the command line:
+Install the fork from its signed GitHub Pages repository:
 
 ```sh
-# Add the Flathub Beta repo
-flatpak remote-add --user --if-not-exists flathub-beta https://flathub.org/beta-repo/flathub-beta.flatpakrepo
-
-# Install Fractal Beta
-flatpak install --user flathub-beta org.gnome.Fractal
+flatpak install --user https://yamada-sexta.github.io/fractal-sexta/fractal-sexta.flatpakref
+flatpak run io.github.yamada_sexta.FractalSexta//nightly
 ```
 
-Finally, run the application:
+The install descriptor also configures the GNOME nightly runtime source. Builds are x86_64 only
+and publish after all GitHub Actions checks pass on `main`. This is a personal, publicly downloadable
+Flatpak repository; it does not require authentication.
+
+For subsequent updates, run `flatpak update --user` or use your desktop software center.
+
+To add only the application source:
 
 ```sh
-flatpak run org.gnome.Fractal//beta
+flatpak remote-add --user --if-not-exists fractal-sexta https://yamada-sexta.github.io/fractal-sexta/fractal-sexta.flatpakrepo
 ```
 
-If you have both the stable and beta versions installed, your system will only show one icon in the
-apps list and launch the stable version by default. If you want to run the beta version by default,
-use this command:
+The [public signing key](data/fractal-sexta-signing-key.asc) is included in both descriptors.
+Its fingerprint is `10B8F31D4403272122E3D96DAFC6E910B5EA6414`.
 
-```sh
-flatpak make-current org.gnome.Fractal beta
-```
+### Install alongside official Fractal
 
-_Note that you can go back to using the stable version by default by using the same command and
-replacing `beta` with `stable`._
+The official [Fractal on Flathub](https://flathub.org/apps/org.gnome.Fractal) uses
+`org.gnome.Fractal`. Fractal Sexta uses `io.github.yamada_sexta.FractalSexta`, with a separate launcher,
+settings, session data, and keyring entries. Both can be installed and run at the same time.
+Sign in separately in the fork; existing Fractal accounts and data are not migrated.
 
-### Development version
+### Local development build
 
-If you want to try the upcoming version of Fractal without building it yourself, it is available as
-a nightly Flatpak in [the gnome-nightly repo](https://nightly.gnome.org/).
-
-First, set up the GNOME nightlies.
-
-<a href="https://nightly.gnome.org/gnome-nightly.flatpakrepo">
-<img
-    src="https://gitlab.gnome.org/World/fractal/uploads/c276f92660dcf50067714ac08e193fea/gnome-nightly-badge.svg"
-    alt="Add gnome-nightly repository"
-    width="240px"
-    height="80px"
-/>
-</a>
-
-Then install the application.
-
-<a href="https://nightly.gnome.org/repo/appstream/org.gnome.Fractal.Devel.flatpakref">
-<img
-    src="https://gitlab.gnome.org/World/fractal/uploads/5e42d322eaacc7da2a52bfda9f7a4e53/fractal-nightly-badge.svg"
-    alt="Download Fractal Nightly"
-    width="240px"
-    height="80px"
-/>
-</a>
-
-Or from the command line:
-
-```sh
-# Add the gnome-nightly repo
-flatpak remote-add --user --if-not-exists gnome-nightly https://nightly.gnome.org/gnome-nightly.flatpakrepo
-
-# Install the nightly build
-flatpak install --user gnome-nightly org.gnome.Fractal.Devel
-```
+The development manifest is `build-aux/io.github.yamada_sexta.FractalSexta.Devel.json` and installs
+`io.github.yamada_sexta.FractalSexta.Devel`. See [the contributor guide](CONTRIBUTING.md).
 
 ### Runtime Dependencies
 
@@ -199,10 +127,10 @@ you need to make sure that no service implementing the Secret portal backend int
 and you need to allow Fractal to access the D-Bus service with this command:
 
 ```sh
-flatpak override --user --talk-name=org.freedesktop.secrets org.gnome.Fractal
+flatpak override --user --talk-name=org.freedesktop.secrets io.github.yamada_sexta.FractalSexta
 ```
 
-_For the nightly version, change the application name to `org.gnome.Fractal.Devel`._
+_For a local development build, use `io.github.yamada_sexta.FractalSexta.Devel`._
 
 Or with [Flatseal](https://flathub.org/apps/details/com.github.tchx84.Flatseal), by adding
 `org.freedesktop.secrets` in the **Session Bus** > **Talk** list of Fractal.

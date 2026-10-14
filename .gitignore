@@ -19,3 +19,11 @@ target/
 # Dynamically-generated files
 src/config.rs
 hooks/checks-bin
+
+# GitHub Actions build and publication outputs
+build-aux/fractal-sexta-nightly.json
+flatpak_app/
+repo/
+flatpak-repo.tar
+_site/
+*.metainfo.xml

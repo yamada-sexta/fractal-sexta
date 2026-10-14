@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fractal Sexta</title>
+  <style>
+    body { max-width: 48rem; margin: 3rem auto; padding: 0 1rem; font: 1.1rem/1.6 system-ui; }
+    img { width: 96px; }
+    pre { padding: 1rem; overflow: auto; background: #eee; color: #222; border-radius: .5rem; }
+    a { color: #1a5fb4; }
+    @media (prefers-color-scheme: dark) {
+      body { background: #222; color: #eee; } a { color: #99c1f1; }
+    }
+  </style>
+  <main>
+    <img src="icon.svg" alt="">
+    <h1>Fractal Sexta</h1>
+    <p>A personal fork of <a href="https://gitlab.gnome.org/World/fractal">Fractal</a>,
+      the GNOME Matrix client. Install it alongside the official app, with separate accounts and settings.</p>
+    <p><a href="fractal-sexta.flatpakref">Install Fractal Sexta</a> ·
+      <a href="fractal-sexta.flatpakrepo">Add the Flatpak repository</a></p>
+    <p>Rolling x86_64 builds publish after checks pass on the main branch.
+      This publicly downloadable repository is independently maintained and uses the GNOME nightly runtime.</p>
+    <h2>Install from the terminal</h2>
+    <pre><code>flatpak install --user https://yamada-sexta.github.io/fractal-sexta/fractal-sexta.flatpakref
+flatpak run io.github.yamada_sexta.FractalSexta//nightly</code></pre>
+    <h2>Update</h2>
+    <pre><code>flatpak update --user</code></pre>
+    <p>Packages and repository metadata are signed. The
+      <a href="signing-key.asc">public signing key</a> and
+      <a href="signing-key.txt">fingerprint</a> are available for inspection.</p>
+    <p><a href="https://github.com/yamada-sexta/fractal-sexta">Source code</a> ·
+      <a href="https://github.com/yamada-sexta/fractal-sexta/issues">Report a fork issue</a> ·
+      <a href="https://flathub.org/apps/org.gnome.Fractal">Official Fractal</a></p>
+    <p>Fractal is GPL-3.0-or-later. Original artwork and contributor credits are retained in the source.</p>
+  </main>
+</html>

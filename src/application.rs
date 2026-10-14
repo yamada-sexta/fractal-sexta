@@ -6,7 +6,7 @@ use gtk::{gio, glib, glib::clone};
 use tracing::{debug, error, info, warn};
 
 use crate::{
-    GETTEXT_PACKAGE, Window, config,
+    Window, config,
     intent::SessionIntent,
     prelude::*,
     session::{Session, SessionState},
@@ -20,9 +20,9 @@ use crate::{
 /// The key for the current session setting.
 pub(crate) const SETTINGS_KEY_CURRENT_SESSION: &str = "current-session";
 /// The name of the application.
-pub(crate) const APP_NAME: &str = "Fractal";
+pub(crate) const APP_NAME: &str = "Fractal Sexta";
 /// The URL of the homepage of the application.
-pub(crate) const APP_HOMEPAGE_URL: &str = "https://gitlab.gnome.org/World/fractal/";
+pub(crate) const APP_HOMEPAGE_URL: &str = "https://github.com/yamada-sexta/fractal-sexta";
 
 mod imp {
     use std::cell::Cell;
@@ -241,11 +241,11 @@ mod imp {
             let dialog = adw::AboutDialog::builder()
                 .application_name(APP_NAME)
                 .application_icon(config::APP_ID)
-                .developer_name(gettext("The Fractal Team"))
+                .developer_name("yamada-sexta and The Fractal Team")
                 .license_type(gtk::License::Gpl30)
                 .website(APP_HOMEPAGE_URL)
-                .issue_url("https://gitlab.gnome.org/World/fractal/-/issues")
-                .support_url("https://matrix.to/#/#fractal:gnome.org")
+                .issue_url("https://github.com/yamada-sexta/fractal-sexta/issues")
+                .support_url("https://github.com/yamada-sexta/fractal-sexta/issues")
                 .version(config::VERSION)
                 .copyright(gettext("© The Fractal Team"))
                 .developers([
@@ -503,7 +503,7 @@ impl Application {
 
     /// Run Fractal.
     pub(crate) fn run(&self) {
-        info!("Fractal ({})", config::APP_ID);
+        info!("{APP_NAME} ({})", config::APP_ID);
         info!("Version: {} ({})", config::VERSION, config::PROFILE);
         info!("Datadir: {}", config::PKGDATADIR);
 
@@ -549,8 +549,8 @@ impl AppProfile {
     /// The name of the directory where to put data for this profile.
     pub(crate) fn dir_name(self) -> Cow<'static, str> {
         match self {
-            AppProfile::Stable => Cow::Borrowed(GETTEXT_PACKAGE),
-            _ => Cow::Owned(format!("{GETTEXT_PACKAGE}-{self}")),
+            AppProfile::Stable => Cow::Borrowed("fractal-sexta"),
+            _ => Cow::Owned(format!("fractal-sexta-{self}")),
         }
     }
 }
@@ -558,6 +558,18 @@ impl AppProfile {
 impl fmt::Display for AppProfile {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.as_str())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AppProfile;
+
+    #[test]
+    fn profile_data_directories_are_separate_from_upstream() {
+        assert_eq!(AppProfile::Stable.dir_name(), "fractal-sexta");
+        assert_eq!(AppProfile::Beta.dir_name(), "fractal-sexta-beta");
+        assert_eq!(AppProfile::Devel.dir_name(), "fractal-sexta-devel");
     }
 }
 

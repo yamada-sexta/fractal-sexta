@@ -2,9 +2,9 @@
 # SPDX-License-Identifier: CC0-1.0
 
 version = 1
-SPDX-PackageName = "Fractal"
-SPDX-PackageSupplier = "The Fractal Team"
-SPDX-PackageDownloadLocation = "https://gitlab.gnome.org/World/Fractal"
+SPDX-PackageName = "Fractal Sexta"
+SPDX-PackageSupplier = "yamada-sexta and The Fractal Team"
+SPDX-PackageDownloadLocation = "https://github.com/yamada-sexta/fractal-sexta"
 
 [[annotations]]
 path = [
@@ -60,6 +60,7 @@ path = [
     ".gitattributes",
     ".gitignore",
     ".gitlab**",
+    ".github/**",
     ".rumdl.toml",
     ".rustfmt.toml",
     ".typos.toml",
@@ -67,6 +68,7 @@ path = [
     "**Cargo.toml",
     "**Cargo.lock",
     "data/org.gnome.Fractal.*.in",
+    "data/fractal-sexta-signing-key.asc",
     "deny.toml",
     "fractal.doap",
     "hooks/**",

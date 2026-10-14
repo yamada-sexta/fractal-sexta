@@ -4,11 +4,12 @@
 <component type="desktop-application">
   <id>@app-id@</id>
   <launchable type="desktop-id">@app-id@.desktop</launchable>
-  <name>Fractal</name>
+  <name>Fractal Sexta</name>
   <summary>Chat on Matrix</summary>
   <description>
     <p>
-      Fractal is a Matrix messaging app for GNOME written in Rust. Its interface is optimized for
+      Fractal Sexta is a personal fork of Fractal, a Matrix messaging app for GNOME written in Rust.
+      Its interface is optimized for
       collaboration in large groups, such as free software projects, and will fit all screens, big or small.
     </p>
     <p>Highlights:</p>
@@ -27,10 +28,9 @@
   </branding>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>GPL-3.0+</project_license>
-  <developer id="org.gnome.fractal">
-    <name>The Fractal Team</name>
+  <developer id="io.github.yamada_sexta">
+    <name>yamada-sexta and The Fractal Team</name>
   </developer>
-  <update_contact>jsparber@gnome.org</update_contact>
   <translation type="gettext">fractal</translation>
 
   <screenshots>
@@ -48,13 +48,13 @@
     </screenshot>
   </screenshots>
 
-  <url type="homepage">https://gitlab.gnome.org/World/fractal</url>
-  <url type="vcs-browser">https://gitlab.gnome.org/World/fractal</url>
-  <url type="bugtracker">https://gitlab.gnome.org/World/fractal/work_items/</url>
+  <url type="homepage">https://yamada-sexta.github.io/fractal-sexta/</url>
+  <url type="vcs-browser">https://github.com/yamada-sexta/fractal-sexta</url>
+  <url type="bugtracker">https://github.com/yamada-sexta/fractal-sexta/issues</url>
   <url type="donation">https://www.gnome.org/donate/</url>
   <url type="translate">https://l10n.gnome.org/module/fractal/</url>
-  <url type="contact">https://matrix.to/#/#fractal:gnome.org</url>
-  <url type="contribute">https://gitlab.gnome.org/World/fractal/-/blob/main/CONTRIBUTING.md</url>
+  <url type="contact">https://github.com/yamada-sexta/fractal-sexta/issues</url>
+  <url type="contribute">https://github.com/yamada-sexta/fractal-sexta/blob/main/CONTRIBUTING.md</url>
 
   <requires>
     <display_length compare="ge">360</display_length>

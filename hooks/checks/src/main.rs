@@ -23,7 +23,8 @@ const WORKSPACE_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../");
 ///
 /// Should be `+nightly-` followed by a date formatted as `YYYY-MM-DD`.
 ///
-/// Keep in sync with `RUST_NIGHTLY_VERSION` variable in `.gitlab-ci.yml`.
+/// Keep in sync with `RUST_NIGHTLY_VERSION` in `.gitlab-ci.yml` and
+/// `.github/workflows/ci.yml`.
 const RUSTUP_NIGHTLY_OVERRIDE: &str = "+nightly-2026-08-24";
 
 /// The version of the Rust nightly toolchain used to run checks that require

@@ -8,9 +8,9 @@ variables:
   # The name of the Flatpak module of our app.
   FLATPAK_MODULE: "fractal"
   # The path to the Flatpak manifest.
-  MANIFEST_PATH: "build-aux/org.gnome.Fractal.Devel.json"
+  MANIFEST_PATH: "build-aux/io.github.yamada_sexta.FractalSexta.Devel.json"
   # The ID of our Flatpak app.
-  APP_ID: "org.gnome.Fractal.Devel"
+  APP_ID: "io.github.yamada_sexta.FractalSexta.Devel"
   # The latest GNOME stable Flatpak runtime.
   GNOME_STABLE_VERSION: "51"
   # The version of the Rust nightly toolchain used for some checks.

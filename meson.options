@@ -9,7 +9,19 @@ option(
     'build-env',
   ],
   value: 'default',
-  description: 'The build profile for Fractal. One of "default", "beta", "development" or "hack".'
+  description: 'The build profile for Fractal Sexta. One of "default", "beta", "development" or "hack".'
+)
+option(
+  'version-suffix',
+  type: 'string',
+  value: '',
+  description: 'Source identifier for rolling Fractal Sexta builds.'
+)
+option(
+  'cargo-cache-dir',
+  type: 'string',
+  value: '',
+  description: 'Persistent Cargo cache directory for CI builds; empty uses the build directory.'
 )
 option(
   'disable-glycin-sandbox',

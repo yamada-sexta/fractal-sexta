@@ -4,10 +4,10 @@
          xmlns:gnome="http://api.gnome.org/doap-extensions#"
          xmlns="http://usefulinc.com/ns/doap#">
 
-  <name xml:lang="en">Fractal</name>
+  <name xml:lang="en">Fractal Sexta</name>
   <shortdesc xml:lang="en">Chat on Matrix</shortdesc>
   <description xml:lang="en">
-    Fractal is a Matrix messaging app for GNOME written in Rust. Its interface is optimized for
+    Fractal Sexta is a personal fork of Fractal, a Matrix messaging app for GNOME written in Rust. Its interface is optimized for
     collaboration in large groups, such as free software projects, and will fit all screens, big or small.
 
     Highlights:
@@ -19,9 +19,9 @@
     - Log into multiple accounts at once (with Single-Sign On support)
   </description>
 
-  <homepage rdf:resource="https://gitlab.gnome.org/World/fractal" />
+  <homepage rdf:resource="https://github.com/yamada-sexta/fractal-sexta" />
   <support-forum rdf:resource="https://discourse.gnome.org/tag/fractal" />
-  <bug-database rdf:resource="https://gitlab.gnome.org/World/fractal/issues" />
+  <bug-database rdf:resource="https://github.com/yamada-sexta/fractal-sexta/issues" />
 
   <programming-language>Rust</programming-language>
   <platform>GTK 4</platform>

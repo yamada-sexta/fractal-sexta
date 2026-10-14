@@ -1,5 +1,5 @@
 cache = false
-exclude = ["data/resources/mapstyle/osm-liberty/*.md"]
+exclude = ["AGENTS.md", "data/resources/mapstyle/osm-liberty/*.md"]
 
 [per-file-ignores]
 ".gitlab/issue_templates/*.md" = ["first-line-heading", "line-length"]

@@ -1,5 +1,5 @@
 {
-    "org.gnome.Fractal.Devel": [
+    "io.github.yamada_sexta.FractalSexta.Devel": [
         "appstream-external-screenshot-url",
         "appstream-missing-developer-name",
         "appstream-screenshots-not-mirrored-in-ostree",

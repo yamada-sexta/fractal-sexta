@@ -11,7 +11,7 @@ gnome = import('gnome')
 i18n = import('i18n')
 
 base_id = 'org.gnome.Fractal'
-application_id = base_id
+application_id = 'io.github.yamada_sexta.FractalSexta'
 
 major_version = '14.1'
 pre_release_version = ''
@@ -21,6 +21,9 @@ if pre_release_version != ''
     version += '.' + pre_release_version
 endif
 full_version = version
+if get_option('version-suffix') != ''
+    full_version += '-' + get_option('version-suffix')
+endif
 
 dependency('glib-2.0', version: '>= 2.82')  # update when changing gtk version
 dependency('gio-2.0', version: '>= 2.82')  # always same version as glib
@@ -97,23 +100,31 @@ endif
 
 cargo_target_dir = meson.project_build_root() / 'cargo-target'
 cargo_home = meson.project_build_root() / 'cargo-home'
+if get_option('cargo-cache-dir') != ''
+    cargo_target_dir = get_option('cargo-cache-dir') / 'target'
+    cargo_home = get_option('cargo-cache-dir') / 'home'
+endif
 
 cargo_env = [
     'CARGO_HOME=' + cargo_home,
     'CARGO_TARGET_DIR=' + cargo_target_dir,
 ]
 
-if profile == 'Devel'
+if profile == 'Devel' or get_option('version-suffix') != ''
     vcs_tag = run_command('git', 'rev-parse', '--short', 'HEAD', check: false).stdout().strip()
     if vcs_tag == ''
         devel_version = profile.to_lower()
     else
         devel_version = vcs_tag
     endif
-    full_version += '-' + devel_version
+    if profile == 'Devel'
+        full_version += '-' + devel_version
+    endif
 
     release_date = run_command('git', 'show', '-s', '--format=%cI', check: true).stdout().strip()
+endif
 
+if profile == 'Devel'
     # Setup pre-commit hook for ensuring coding style is always consistent
     message('Compiling pre-commit binary…')
     run_command(

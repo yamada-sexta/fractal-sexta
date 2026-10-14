@@ -246,7 +246,7 @@ impl StoredSession {
                 &gettext_f(
                     // Translators: Do NOT translate the content between '{' and '}', this is a
                     // variable name.
-                    "Fractal: Matrix credentials for {user_id}",
+                    "Fractal Sexta: Matrix credentials for {user_id}",
                     &[("user_id", attributes.user_id.as_str())],
                 ),
                 &attributes,

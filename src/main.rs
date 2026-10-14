@@ -1,6 +1,6 @@
 #![doc(
-    html_logo_url = "https://gitlab.gnome.org/World/fractal/-/raw/main/data/icons/org.gnome.Fractal.svg?inline=false",
-    html_favicon_url = "https://gitlab.gnome.org/World/fractal/-/raw/main/data/icons/org.gnome.Fractal-symbolic.svg?inline=false"
+    html_logo_url = "https://raw.githubusercontent.com/yamada-sexta/fractal-sexta/main/data/icons/org.gnome.Fractal.svg",
+    html_favicon_url = "https://raw.githubusercontent.com/yamada-sexta/fractal-sexta/main/data/icons/org.gnome.Fractal-symbolic.svg"
 )]
 #![recursion_limit = "256"]
 
@@ -62,7 +62,7 @@ fn main() {
     bindtextdomain(GETTEXT_PACKAGE, LOCALEDIR).expect("Invalid argument passed to bindtextdomain");
     textdomain(GETTEXT_PACKAGE).expect("Invalid string passed to textdomain");
 
-    gtk::glib::set_application_name("Fractal");
+    gtk::glib::set_application_name(APP_NAME);
 
     gtk::init().expect("Could not start GTK4");
     gst::init().expect("Could not initialize gst");
