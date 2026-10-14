@@ -97,7 +97,7 @@ jobs:
       - name: Reduce release cache size
         run: |
           mkdir -p "$RUNNER_TEMP/fractal-cargo-cache/home"
-          printf '[unstable]\nembed-metadata = "no"\n' > "$RUNNER_TEMP/fractal-cargo-cache/home/config.toml"
+          printf '[unstable]\nembed-metadata = true\n' > "$RUNNER_TEMP/fractal-cargo-cache/home/config.toml"
       - name: Build x86_64 Flatpak
         run: |
           flatpak-builder --user --assumeyes --disable-rofiles-fuse --force-clean --rebuild-on-sdk-change --jobs=4 \
