@@ -34,3 +34,5 @@ Take the first option that fully works:
 Never cut: validation at trust boundaries, error handling that prevents data loss, security, accessibility, the calibration real hardware needs, anything the user asked for.
 
 use git mv to move tracked files.
+
+Never add tests unless explicitly told so.
