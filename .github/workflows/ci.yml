@@ -5,6 +5,11 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      publish_run_id:
+        description: Publish an existing successful main build without rebuilding
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -20,6 +25,7 @@ env:
 
 jobs:
   flatpak:
+    if: inputs.publish_run_id == ''
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -141,7 +147,10 @@ jobs:
           retention-days: 7
 
   publish:
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    if: >-
+      always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' &&
+      (needs.flatpak.result == 'success' ||
+       (github.event_name == 'workflow_dispatch' && inputs.publish_run_id != ''))
     needs: [flatpak]
     runs-on: ubuntu-24.04
     concurrency:
@@ -160,15 +169,31 @@ jobs:
         id: current
         env:
           GH_TOKEN: ${{ github.token }}
+          PUBLISH_RUN_ID: ${{ inputs.publish_run_id }}
         run: |
           latest=$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq '.sha')
-          if [[ "$latest" == "$GITHUB_SHA" ]]; then
+          if [[ -n "$PUBLISH_RUN_ID" ]]; then
+            [[ "$PUBLISH_RUN_ID" =~ ^[0-9]+$ ]]
+            built=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PUBLISH_RUN_ID" \
+              --jq 'select(.conclusion == "success" and .head_branch == "main" and .path == ".github/workflows/ci.yml") | .head_sha')
+            test -n "$built"
+            git fetch --no-tags origin "$built" "$latest"
+            git diff --quiet "$built" "$latest" -- . ':!AGENTS.md' ':!.github/workflows/ci.yml'
             echo "publish=true" >> "$GITHUB_OUTPUT"
+          elif [[ "$latest" == "$GITHUB_SHA" ]]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            git fetch --no-tags origin "$latest"
+            if git diff --quiet "$GITHUB_SHA" "$latest" -- . ':!AGENTS.md'; then
+              echo "publish=true" >> "$GITHUB_OUTPUT"
+            fi
           fi
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         if: steps.current.outputs.publish == 'true'
         with:
           name: flatpak-repository
+          run-id: ${{ inputs.publish_run_id || github.run_id }}
+          github-token: ${{ github.token }}
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6
         if: steps.current.outputs.publish == 'true'
         id: pages
