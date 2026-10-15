@@ -266,7 +266,7 @@ mod imp {
                 return glib::Propagation::Stop;
             }
 
-            glib::Propagation::Proceed
+            self.parent_close_request()
         }
     }
 
