@@ -449,8 +449,9 @@ impl ImageRequest {
 
             if let Ok(mut handle) = task_handle.lock() {
                 if let Some(old) = handle.replace(abort_handle) { old.abort(); }
-                if canceled_sender.receiver_count() == 0 {
-                    if let Some(handle) = handle.take() { handle.abort(); }
+                if canceled_sender.receiver_count() == 0
+                    && let Some(handle) = handle.take() {
+                    handle.abort();
                 }
             }
         });

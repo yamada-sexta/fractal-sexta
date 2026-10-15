@@ -161,7 +161,7 @@ mod imp {
                 move |_, session| obj.add_session(session)
             ));
             self.obj()
-                .connect_is_active_notify(|obj| obj.update_notification_context());
+                .connect_is_active_notify(super::Window::update_notification_context);
             self.session_view.connect_selected_room_notify(clone!(
                 #[weak(rename_to = obj)]
                 self.obj(),
@@ -536,11 +536,13 @@ glib::wrapper! {
 
 impl Window {
     fn update_notification_context(&self) {
-        let app = Application::default();
+        let Some(app) = self.application().and_downcast::<Application>() else {
+            return;
+        };
         let active = app
             .active_window()
             .and_downcast::<Window>()
-            .filter(|window| window.is_active());
+            .filter(GtkWindowExt::is_active);
         for item in app.session_list().iter::<SessionInfo>().flatten() {
             if let Ok(session) = item.downcast::<Session>() {
                 let room = active

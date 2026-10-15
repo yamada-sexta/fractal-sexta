@@ -21,10 +21,7 @@ impl DisplayFrame {
         let delay = frame.delay_duration();
         let texture = frame.texture();
         let bytes = u64::from(frame.stride()) * u64::from(frame.height());
-        let source = FrameDimensions {
-            width: texture.width() as u32,
-            height: texture.height() as u32,
-        };
+        let source = FrameDimensions::with_texture(&texture).ok_or(ImageError::Unknown)?;
         let Some(maximum) = maximum else {
             return Ok(Self {
                 texture,
@@ -59,14 +56,6 @@ impl DisplayFrame {
                     | M::G16a16
                     | M::G16a16Premultiplied
                     | M::A16 => (M::R16g16b16a16, PixelType::U16x4),
-                    M::R16g16b16Float
-                    | M::R16g16b16a16Float
-                    | M::R16g16b16a16FloatPremultiplied
-                    | M::R32g32b32Float
-                    | M::R32g32b32a32Float
-                    | M::R32g32b32a32FloatPremultiplied
-                    | M::A16Float
-                    | M::A32Float => (M::R32g32b32a32Float, PixelType::F32x4),
                     M::B8g8r8a8Premultiplied
                     | M::A8r8g8b8Premultiplied
                     | M::R8g8b8a8Premultiplied
@@ -101,8 +90,8 @@ impl DisplayFrame {
             })??;
         let bytes = pixels.len() as u64;
         let texture = gdk::MemoryTextureBuilder::new()
-            .set_width(target.width as i32)
-            .set_height(target.height as i32)
+            .set_width(target.width.try_into().map_err(|_| ImageError::Unknown)?)
+            .set_height(target.height.try_into().map_err(|_| ImageError::Unknown)?)
             .set_format(format)
             .set_color_state(&color_state)
             .set_stride(stride)

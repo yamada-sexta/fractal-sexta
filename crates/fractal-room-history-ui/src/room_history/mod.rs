@@ -1199,12 +1199,12 @@ impl RoomHistory {
         &self,
         source: &gtk::Widget,
         room: &Room,
-        message: crate::utils::matrix::VisualMediaMessage,
+        message: &crate::utils::matrix::VisualMediaMessage,
         event_id: Option<ruma::OwnedEventId>,
     ) {
         self.emit_by_name::<()>(
             "show-media",
-            &[source, room, &message, &event_id.map(String::from)],
+            &[source, room, message, &event_id.map(String::from)],
         );
     }
     pub fn connect_show_media(
@@ -1229,7 +1229,7 @@ impl RoomHistory {
                     room,
                     message,
                     event_id.and_then(|id| ruma::OwnedEventId::try_from(id).ok()),
-                )
+                );
             }),
         )
     }

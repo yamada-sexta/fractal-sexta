@@ -864,7 +864,7 @@ mod imp {
                 return;
             };
             let event_id = self.cache_key.borrow().event_id.clone();
-            history.request_media_viewer(obj.upcast_ref(), &room, media_message, event_id);
+            history.request_media_viewer(obj.upcast_ref(), &room, &media_message, event_id);
         }
     }
 }

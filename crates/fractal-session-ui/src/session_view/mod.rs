@@ -44,6 +44,7 @@ mod imp {
     pub struct SessionView {
         #[property(get, set)]
         compact: std::cell::Cell<bool>,
+        /// The currently selected room, if any.
         #[property(get = Self::selected_room, nullable)]
         selected_room: std::marker::PhantomData<Option<Room>>,
         #[template_child]
@@ -619,8 +620,6 @@ impl SessionView {
     pub fn new() -> Self {
         glib::Object::new()
     }
-
-    /// The currently selected room, if any.
 
     /// Select the given room.
     pub fn select_room(&self, room: Room) {
