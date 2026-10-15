@@ -432,7 +432,7 @@ mod imp {
         }
 
         /// Clear the media file, if any.
-        fn clear(&self) {
+        pub(super) fn clear(&self) {
             self.generation.set(self.generation.get().wrapping_add(1));
             self.set_state(LoadingState::Initial);
 

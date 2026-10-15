@@ -75,7 +75,7 @@ mod imp {
         #[template_child]
         room_histories: TemplateChild<gtk::Stack>,
         recent_rooms: OnceCell<RefCell<LruCache<Room, RoomHistory>>>,
-        pub(super) header_bar_size_group: gtk::SizeGroup,
+        header_bar_size_group: OnceCell<gtk::SizeGroup>,
         #[template_child]
         invite_request: TemplateChild<InviteRequest>,
         #[template_child]
@@ -126,8 +126,6 @@ mod imp {
         fn constructed(&self) {
             self.parent_constructed();
 
-            self.header_bar_size_group
-                .set_mode(gtk::SizeGroupMode::Vertical);
             for bar in [
                 &*self.empty_page_header_bar,
                 self.invite_request.header_bar(),
@@ -135,7 +133,7 @@ mod imp {
                 self.explore.header_bar(),
                 &*self.verification_page_header_bar,
             ] {
-                self.header_bar_size_group.add_widget(bar);
+                self.header_bar_size_group().add_widget(bar);
             }
 
             self.stack.connect_visible_child_notify(clone!(
@@ -312,6 +310,11 @@ mod imp {
             }
         }
 
+        pub(super) fn header_bar_size_group(&self) -> &gtk::SizeGroup {
+            self.header_bar_size_group
+                .get_or_init(|| gtk::SizeGroup::new(gtk::SizeGroupMode::Vertical))
+        }
+
         fn history_for_room(&self, room: &Room) -> RoomHistory {
             let cache = self
                 .recent_rooms
@@ -347,7 +350,8 @@ mod imp {
                         }
                     }
                 ));
-                self.header_bar_size_group.add_widget(history.header_bar());
+                self.header_bar_size_group()
+                    .add_widget(history.header_bar());
                 self.room_histories.add_child(&history);
                 history
             });
@@ -363,7 +367,7 @@ mod imp {
             }
             while let Some(child) = self.room_histories.first_child() {
                 if let Some(history) = child.downcast_ref::<RoomHistory>() {
-                    self.header_bar_size_group
+                    self.header_bar_size_group()
                         .remove_widget(history.header_bar());
                     history.set_timeline(None::<crate::session::Timeline>);
                 }
@@ -391,6 +395,6 @@ impl Content {
     }
 
     pub fn header_bar_size_group(&self) -> &gtk::SizeGroup {
-        &self.imp().header_bar_size_group
+        self.imp().header_bar_size_group()
     }
 }
