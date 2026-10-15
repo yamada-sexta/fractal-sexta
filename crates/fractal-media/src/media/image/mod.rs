@@ -105,7 +105,8 @@ impl ImageDecoderSource {
             Self::File(file) => (glycin::Loader::new(&file.as_gfile()), Some(file)),
         };
 
-        if DISABLE_GLYCIN_SANDBOX {
+        // Unit tests decode generated fixtures inside an uninstalled Flatpak build.
+        if DISABLE_GLYCIN_SANDBOX || cfg!(test) {
             loader.set_sandbox_selector(glycin::SandboxSelector::NotSandboxed);
         }
 
