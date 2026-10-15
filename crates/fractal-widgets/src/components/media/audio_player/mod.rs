@@ -399,19 +399,16 @@ mod imp {
             // loaded at a time.
             // We cannot keep a strong reference while `.await`ing, or it will prevent from
             // destroying the player.
+            let receiver = notifier.listen();
+            self.media_notifier.replace(Some(notifier));
+            let generation = self.generation.get();
             let weak_imp = self.downgrade();
             spawn!(async move {
-                let receiver = if let Some(imp) = weak_imp.upgrade() {
-                    let receiver = notifier.listen();
-                    imp.media_notifier.replace(Some(notifier));
-                    receiver
-                } else {
-                    return;
-                };
-
                 receiver.await;
 
-                if let Some(imp) = weak_imp.upgrade() {
+                if let Some(imp) = weak_imp.upgrade()
+                    && imp.generation.get() == generation
+                {
                     // If we still have a copy of the notifier now, it means that this was called
                     // from outside this instance, so we need to clear it.
                     if imp.media_notifier.take().is_some() {
@@ -428,6 +425,7 @@ mod imp {
                 .as_ref()
                 .is_some_and(|source| matches!(source, AudioPlayerSource::Message(_)))
                 && let Some(waveform) = load_audio_info(&gfile).await.waveform
+                && self.generation.get() == generation
             {
                 self.waveform.set_waveform(waveform);
             }
