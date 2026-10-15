@@ -328,34 +328,30 @@ mod imp {
                     None
                 }
             };
-            if let Some(history) = evicted {
-                self.header_bar_size_group
-                    .remove_widget(history.header_bar());
-                history.set_timeline(None::<crate::session::Timeline>);
-                self.room_histories.remove(&history);
-            }
-
-            let history = RoomHistory::new();
-            self.obj()
-                .bind_property("only-view", &history, "is-only-view")
-                .sync_create()
-                .build();
-            let obj = self.obj();
-            history.connect_show_media(clone!(
-                #[weak]
-                obj,
-                move |source, room, message, event_id| {
-                    if let Some(view) = obj
-                        .ancestor(SessionView::static_type())
-                        .and_downcast::<SessionView>()
-                    {
-                        view.show_media_viewer(&source, &room, message, event_id);
+            let history = evicted.unwrap_or_else(|| {
+                let history = RoomHistory::new();
+                self.obj()
+                    .bind_property("only-view", &history, "is-only-view")
+                    .sync_create()
+                    .build();
+                let obj = self.obj();
+                history.connect_show_media(clone!(
+                    #[weak]
+                    obj,
+                    move |source, room, message, event_id| {
+                        if let Some(view) = obj
+                            .ancestor(SessionView::static_type())
+                            .and_downcast::<SessionView>()
+                        {
+                            view.show_media_viewer(&source, &room, message, event_id);
+                        }
                     }
-                }
-            ));
+                ));
+                self.header_bar_size_group.add_widget(history.header_bar());
+                self.room_histories.add_child(&history);
+                history
+            });
             history.set_timeline(Some(room.live_timeline()));
-            self.header_bar_size_group.add_widget(history.header_bar());
-            self.room_histories.add_child(&history);
             cache.borrow_mut().cache_set(room.clone(), history.clone());
             debug_assert!(cache.borrow().cache_size() <= RECENT_ROOMS);
             history
