@@ -17,11 +17,13 @@ Matrix client written in Rust. This project exist due to the extreme GNOME-ism o
 
 Why this fork?
 
-- sensible VRAM usage
+- Lighter resource usage (below showing both opening the same room)
 
-<img width="919" height="101" alt="image" src="https://github.com/user-attachments/assets/aa14002b-a857-45e9-a722-cc0db33a85f4" />
+<img width="914" height="100" alt="image" src="https://github.com/user-attachments/assets/8ca1f4c9-9f45-402e-9064-a18db977bba5" />
 
-- background notification/system tray
+- Background notification/system tray
+- Faster room switching
+- Multi window support
 
 <div align="center">
 <img
