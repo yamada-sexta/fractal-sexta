@@ -1381,6 +1381,7 @@ dependencies = [
 name = "fractal-session-ui"
 version = "14.1.0"
 dependencies = [
+ "cached",
  "fractal-accounts-ui",
  "fractal-backend",
  "fractal-config",

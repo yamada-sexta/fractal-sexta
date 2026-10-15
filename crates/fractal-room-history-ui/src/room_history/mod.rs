@@ -352,6 +352,24 @@ mod imp {
 
             // When the room history becomes mapped, trigger a read receipt update.
             self.trigger_read_receipts_update();
+            if self.is_sticky.get() {
+                self.scroll_down();
+            }
+            self.load_more_events_if_needed();
+        }
+
+        fn unmap(&self) {
+            self.parent_unmap();
+            self.set_is_auto_scrolling(false);
+            for source in [self.scroll_timeout.take(), self.read_timeout.take()]
+                .into_iter()
+                .flatten()
+            {
+                source.remove();
+            }
+            self.load_generation
+                .set(self.load_generation.get().wrapping_add(1));
+            self.load_more_task.take();
         }
     }
 
@@ -676,6 +694,9 @@ mod imp {
 
         /// Handle when the scroll value changed.
         fn scroll_value_changed(&self) {
+            if !self.obj().is_mapped() {
+                return;
+            }
             let is_at_bottom = self.is_at_bottom();
 
             if self.is_auto_scrolling.get() && !is_at_bottom {
@@ -699,7 +720,7 @@ mod imp {
 
         /// Handle when the maximum scroll value changed.
         fn scroll_max_value_changed(&self) {
-            if self.is_auto_scrolling.get() {
+            if !self.obj().is_mapped() || self.is_auto_scrolling.get() {
                 // We are handling it.
                 return;
             }
@@ -753,7 +774,7 @@ mod imp {
                     #[weak(rename_to = imp)]
                     self,
                     move || {
-                        if imp.timeline.obj() != timeline {
+                        if !imp.obj().is_mapped() || imp.timeline.obj() != timeline {
                             return;
                         }
                         let n_items = imp.grouping_model().n_items();
@@ -845,7 +866,10 @@ mod imp {
 
         /// Load more events in the history if needed.
         fn load_more_events_if_needed(&self) {
-            if !self.is_auto_scrolling.get() && self.needs_more_events_at_the_start() {
+            if self.obj().is_mapped()
+                && !self.is_auto_scrolling.get()
+                && self.needs_more_events_at_the_start()
+            {
                 self.load_more_events_at_the_start(true);
             }
         }

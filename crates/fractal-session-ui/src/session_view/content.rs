@@ -1,7 +1,8 @@
 use adw::{prelude::*, subclass::prelude::*};
+use cached::{Cached, LruCache};
 use gtk::{glib, glib::clone};
 
-use super::{Explore, Invite, InviteRequest, RoomHistory};
+use super::{Explore, Invite, InviteRequest, RoomHistory, SessionView};
 use crate::{
     identity_verification_view::IdentityVerificationView,
     session::{
@@ -9,6 +10,8 @@ use crate::{
     },
     utils::BoundObject,
 };
+
+const RECENT_ROOMS: usize = 3;
 
 /// A page of the content stack.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -57,7 +60,7 @@ impl ContentPage {
 }
 
 mod imp {
-    use std::cell::{Cell, RefCell};
+    use std::cell::{Cell, OnceCell, RefCell};
 
     use glib::subclass::InitializingObject;
 
@@ -70,7 +73,9 @@ mod imp {
         #[template_child]
         stack: TemplateChild<gtk::Stack>,
         #[template_child]
-        pub(super) room_history: TemplateChild<RoomHistory>,
+        room_histories: TemplateChild<gtk::Stack>,
+        recent_rooms: OnceCell<RefCell<LruCache<Room, RoomHistory>>>,
+        pub(super) header_bar_size_group: gtk::SizeGroup,
         #[template_child]
         invite_request: TemplateChild<InviteRequest>,
         #[template_child]
@@ -121,6 +126,18 @@ mod imp {
         fn constructed(&self) {
             self.parent_constructed();
 
+            self.header_bar_size_group
+                .set_mode(gtk::SizeGroupMode::Vertical);
+            for bar in [
+                &*self.empty_page_header_bar,
+                self.invite_request.header_bar(),
+                self.invite.header_bar(),
+                self.explore.header_bar(),
+                &*self.verification_page_header_bar,
+            ] {
+                self.header_bar_size_group.add_widget(bar);
+            }
+
             self.stack.connect_visible_child_notify(clone!(
                 #[weak(rename_to = imp)]
                 self,
@@ -134,6 +151,7 @@ mod imp {
         }
 
         fn dispose(&self) {
+            self.clear_recent_rooms();
             if let Some(binding) = self.item_binding.take() {
                 binding.unbind();
             }
@@ -161,10 +179,6 @@ mod imp {
 
         /// Set the visible page of the content.
         fn set_visible_page(&self, page: ContentPage) {
-            if page != ContentPage::RoomHistory {
-                self.room_history
-                    .set_timeline(None::<crate::session::Timeline>);
-            }
             if self.visible_page() == page {
                 return;
             }
@@ -183,6 +197,10 @@ mod imp {
                 binding.unbind();
             }
 
+            self.set_item(None);
+            self.clear_recent_rooms();
+            self.session.set(session);
+
             if let Some(session) = session {
                 let item_binding = session
                     .sidebar_list_model()
@@ -195,7 +213,6 @@ mod imp {
                 self.item_binding.replace(Some(item_binding));
             }
 
-            self.session.set(session);
             obj.notify_session();
         }
 
@@ -238,7 +255,12 @@ mod imp {
             self.update_visible_child();
             self.obj().notify_item();
 
-            if let Some(page) = self.stack.visible_child() {
+            let page = if self.visible_page() == ContentPage::RoomHistory {
+                self.room_histories.visible_child()
+            } else {
+                self.stack.visible_child()
+            };
+            if let Some(page) = page {
                 page.grab_focus();
             }
         }
@@ -261,7 +283,8 @@ mod imp {
                         self.set_visible_page(ContentPage::Invite);
                     }
                     _ => {
-                        self.room_history.set_timeline(Some(room.live_timeline()));
+                        let history = self.history_for_room(room);
+                        self.room_histories.set_visible_child(&history);
                         self.set_visible_page(ContentPage::RoomHistory);
                     }
                 }
@@ -279,21 +302,77 @@ mod imp {
 
         /// Handle a paste action.
         pub(super) fn handle_paste_action(&self) {
-            if self.visible_page() == ContentPage::RoomHistory {
-                self.room_history.handle_paste_action();
+            if self.visible_page() == ContentPage::RoomHistory
+                && let Some(history) = self
+                    .room_histories
+                    .visible_child()
+                    .and_downcast::<RoomHistory>()
+            {
+                history.handle_paste_action();
             }
         }
 
-        /// All the header bars of the children of the content.
-        pub(super) fn header_bars(&self) -> [&adw::HeaderBar; 6] {
-            [
-                &self.empty_page_header_bar,
-                self.room_history.header_bar(),
-                self.invite_request.header_bar(),
-                self.invite.header_bar(),
-                self.explore.header_bar(),
-                &self.verification_page_header_bar,
-            ]
+        fn history_for_room(&self, room: &Room) -> RoomHistory {
+            let cache = self
+                .recent_rooms
+                .get_or_init(|| RefCell::new(LruCache::new(RECENT_ROOMS)));
+            if let Some(history) = cache.borrow_mut().cache_get(room).cloned() {
+                return history;
+            }
+            let evicted = {
+                let mut cache = cache.borrow_mut();
+                if cache.cache_size() == RECENT_ROOMS {
+                    let oldest = cache.key_order().pop().expect("full cache has a room");
+                    cache.cache_remove(&oldest)
+                } else {
+                    None
+                }
+            };
+            if let Some(history) = evicted {
+                self.header_bar_size_group
+                    .remove_widget(history.header_bar());
+                history.set_timeline(None::<crate::session::Timeline>);
+                self.room_histories.remove(&history);
+            }
+
+            let history = RoomHistory::new();
+            self.obj()
+                .bind_property("only-view", &history, "is-only-view")
+                .sync_create()
+                .build();
+            let obj = self.obj();
+            history.connect_show_media(clone!(
+                #[weak]
+                obj,
+                move |source, room, message, event_id| {
+                    if let Some(view) = obj
+                        .ancestor(SessionView::static_type())
+                        .and_downcast::<SessionView>()
+                    {
+                        view.show_media_viewer(&source, &room, message, event_id);
+                    }
+                }
+            ));
+            history.set_timeline(Some(room.live_timeline()));
+            self.header_bar_size_group.add_widget(history.header_bar());
+            self.room_histories.add_child(&history);
+            cache.borrow_mut().cache_set(room.clone(), history.clone());
+            debug_assert!(cache.borrow().cache_size() <= RECENT_ROOMS);
+            history
+        }
+
+        fn clear_recent_rooms(&self) {
+            if let Some(cache) = self.recent_rooms.get() {
+                cache.borrow_mut().cache_clear();
+            }
+            while let Some(child) = self.room_histories.first_child() {
+                if let Some(history) = child.downcast_ref::<RoomHistory>() {
+                    self.header_bar_size_group
+                        .remove_widget(history.header_bar());
+                    history.set_timeline(None::<crate::session::Timeline>);
+                }
+                self.room_histories.remove(&child);
+            }
         }
     }
 }
@@ -306,9 +385,6 @@ glib::wrapper! {
 }
 
 impl Content {
-    pub fn room_history(&self) -> &RoomHistory {
-        &self.imp().room_history
-    }
     pub fn new(session: &Session) -> Self {
         glib::Object::builder().property("session", session).build()
     }
@@ -318,8 +394,7 @@ impl Content {
         self.imp().handle_paste_action();
     }
 
-    /// All the header bars of the children of the content.
-    pub fn header_bars(&self) -> [&adw::HeaderBar; 6] {
-        self.imp().header_bars()
+    pub fn header_bar_size_group(&self) -> &gtk::SizeGroup {
+        &self.imp().header_bar_size_group
     }
 }

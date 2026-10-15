@@ -52,6 +52,7 @@ mod imp {
         position_label_narrow: TemplateChild<gtk::Label>,
         /// The source to play.
         source: RefCell<Option<AudioPlayerSource>>,
+        generation: Cell<u64>,
         /// The API used to play the audio file.
         media_file: RefCell<Option<gtk::MediaFile>>,
         /// The audio file that is currently loaded.
@@ -434,6 +435,7 @@ mod imp {
 
         /// Clear the media file, if any.
         fn clear(&self) {
+            self.generation.set(self.generation.get().wrapping_add(1));
             self.set_state(LoadingState::Initial);
 
             if let Some(media_file) = self.media_file.take() {
@@ -466,13 +468,19 @@ mod imp {
 
             self.set_state(LoadingState::Loading);
 
+            let generation = self.generation.get();
             match source.to_file().await {
                 Ok(file) => {
+                    if !self.obj().is_mapped() || self.generation.get() != generation {
+                        return;
+                    }
                     self.set_file(file).await;
                 }
                 Err(error) => {
                     warn!("Could not retrieve audio file: {error}");
-                    self.set_error(&gettext("Could not retrieve audio file"));
+                    if self.generation.get() == generation {
+                        self.set_error(&gettext("Could not retrieve audio file"));
+                    }
                 }
             }
         }
@@ -504,6 +512,11 @@ glib::wrapper! {
 }
 
 impl AudioPlayer {
+    /// Stop playback and release the player while retaining the source.
+    pub fn stop(&self) {
+        self.imp().clear();
+    }
+
     /// Create a new audio player.
     pub fn new() -> Self {
         glib::Object::new()

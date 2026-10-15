@@ -46,7 +46,12 @@ mod imp {
     #[glib::derived_properties]
     impl ObjectImpl for MessageAudio {}
 
-    impl WidgetImpl for MessageAudio {}
+    impl WidgetImpl for MessageAudio {
+        fn unmap(&self) {
+            self.parent_unmap();
+            self.player.stop();
+        }
+    }
     impl BoxImpl for MessageAudio {}
 
     impl MessageAudio {

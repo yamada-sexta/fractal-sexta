@@ -35,8 +35,10 @@ template $Content: Adw.NavigationPage {
       name: "room-history";
       title: _("Room History");
 
-      child: $ContentRoomHistory room_history {
-        is-only-view: bind template.only-view;
+      child: Gtk.Stack room_histories {
+        hhomogeneous: false;
+        vhomogeneous: false;
+        transition-type: none;
       };
     }
 

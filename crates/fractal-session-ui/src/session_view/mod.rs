@@ -206,12 +206,6 @@ mod imp {
         fn constructed(&self) {
             self.parent_constructed();
             let obj = self.obj();
-            self.content.room_history().connect_show_media(clone!(
-                #[weak(rename_to = imp)]
-                self,
-                move |source, room, message, event_id| imp
-                    .show_media_viewer(&source, &room, message, event_id)
-            ));
 
             self.content.connect_item_notify(clone!(
                 #[weak(rename_to = imp)]
@@ -259,12 +253,9 @@ mod imp {
 
             // Make sure all header bars on the same screen have the same height.
             // Necessary when the text scaling changes.
-            let size_group = gtk::SizeGroup::new(gtk::SizeGroupMode::Vertical);
-            size_group.add_widget(self.sidebar.header_bar());
-
-            for header_bar in self.content.header_bars() {
-                size_group.add_widget(header_bar);
-            }
+            self.content
+                .header_bar_size_group()
+                .add_widget(self.sidebar.header_bar());
         }
 
         fn dispose(&self) {

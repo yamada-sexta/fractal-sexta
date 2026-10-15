@@ -8,6 +8,7 @@ publish = false
 
 [dependencies]
 adw.workspace = true
+cached.workspace = true
 fractal-accounts-ui = { path = "../fractal-accounts-ui" }
 fractal-backend = { path = "../fractal-backend" }
 fractal-config = { path = "../fractal-config" }
