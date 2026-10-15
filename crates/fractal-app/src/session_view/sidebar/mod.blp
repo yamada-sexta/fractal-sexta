@@ -4,6 +4,13 @@ using Adw 1;
 menu primary_menu {
   section {
     item {
+      label: _("New _Window");
+      action: "win.new-window";
+    }
+  }
+
+  section {
+    item {
       label: _("New _Direct Chat…");
       action: "session.create-direct-chat";
     }

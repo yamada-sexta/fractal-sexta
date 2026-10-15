@@ -83,9 +83,9 @@ mod imp {
         pub(super) image_cache: fractal_media::media::image::ImageCache,
         /// The Matrix client for this session.
         client: OnceCell<TokioDrop<Client>>,
-        /// The list model of the sidebar.
-        #[property(get = Self::sidebar_list_model)]
-        sidebar_list_model: OnceCell<SidebarListModel>,
+        /// The shared room and verification data.
+        room_list: OnceCell<RoomList>,
+        verification_list: OnceCell<VerificationList>,
         /// The user of this session.
         #[property(get = Self::user)]
         user: OnceCell<User>,
@@ -195,26 +195,18 @@ mod imp {
             self.client.get().expect("client should be initialized")
         }
 
-        /// The list model of the sidebar.
-        fn sidebar_list_model(&self) -> SidebarListModel {
-            self.sidebar_list_model
-                .get_or_init(|| {
-                    let obj = self.obj();
-                    let item_list =
-                        SidebarItemList::new(&RoomList::new(&obj), &VerificationList::new(&obj));
-                    SidebarListModel::new(&item_list)
-                })
-                .clone()
-        }
-
         /// The room list of this session.
         pub(super) fn room_list(&self) -> RoomList {
-            self.sidebar_list_model().item_list().room_list()
+            self.room_list
+                .get_or_init(|| RoomList::new(&self.obj()))
+                .clone()
         }
 
         /// The verification list of this session.
         pub(super) fn verification_list(&self) -> VerificationList {
-            self.sidebar_list_model().item_list().verification_list()
+            self.verification_list
+                .get_or_init(|| VerificationList::new(&self.obj()))
+                .clone()
         }
 
         /// The user of the session.

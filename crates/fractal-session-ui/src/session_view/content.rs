@@ -6,7 +6,8 @@ use super::{Explore, Invite, InviteRequest, RoomHistory, SessionView};
 use crate::{
     identity_verification_view::IdentityVerificationView,
     session::{
-        IdentityVerification, Room, RoomCategory, Session, SidebarIconItem, SidebarIconItemType,
+        IdentityVerification, Room, RoomCategory, SidebarIconItem, SidebarIconItemType,
+        SidebarListModel,
     },
     utils::BoundObject,
 };
@@ -92,9 +93,9 @@ mod imp {
         verification_page_header_bar: TemplateChild<adw::HeaderBar>,
         #[template_child]
         identity_verification_widget: TemplateChild<IdentityVerificationView>,
-        /// The current session.
-        #[property(get, set = Self::set_session, explicit_notify, nullable)]
-        session: glib::WeakRef<Session>,
+        /// The sidebar state of this window's current account.
+        #[property(get, set = Self::set_list_model, explicit_notify, nullable)]
+        list_model: glib::WeakRef<SidebarListModel>,
         /// Whether this is the only visible view, i.e. there is no sidebar.
         #[property(get, set)]
         only_view: Cell<bool>,
@@ -184,9 +185,9 @@ mod imp {
             self.stack.set_visible_child_name(page.name());
         }
 
-        /// Set the current session.
-        fn set_session(&self, session: Option<&Session>) {
-            if session == self.session.upgrade().as_ref() {
+        /// Set the sidebar state of this window's current account.
+        fn set_list_model(&self, list_model: Option<&SidebarListModel>) {
+            if list_model == self.list_model.upgrade().as_ref() {
                 return;
             }
             let obj = self.obj();
@@ -197,11 +198,10 @@ mod imp {
 
             self.set_item(None);
             self.clear_recent_rooms();
-            self.session.set(session);
+            self.list_model.set(list_model);
 
-            if let Some(session) = session {
-                let item_binding = session
-                    .sidebar_list_model()
+            if let Some(list_model) = list_model {
+                let item_binding = list_model
                     .selection_model()
                     .bind_property("selected-item", &*obj, "item")
                     .sync_create()
@@ -211,7 +211,7 @@ mod imp {
                 self.item_binding.replace(Some(item_binding));
             }
 
-            obj.notify_session();
+            obj.notify_list_model();
         }
 
         /// Set the item currently displayed.
@@ -385,10 +385,6 @@ glib::wrapper! {
 }
 
 impl Content {
-    pub fn new(session: &Session) -> Self {
-        glib::Object::builder().property("session", session).build()
-    }
-
     /// Handle a paste action.
     pub fn handle_paste_action(&self) {
         self.imp().handle_paste_action();

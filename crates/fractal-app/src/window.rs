@@ -7,7 +7,7 @@ use gtk::{gdk, gio, glib, glib::clone};
 use tracing::{error, warn};
 
 use crate::{
-    APP_ID, Application, PROFILE, SETTINGS_KEY_CURRENT_SESSION,
+    APP_ID, APP_NAME, Application, PROFILE, SETTINGS_KEY_CURRENT_SESSION,
     account_chooser_dialog::AccountChooserDialog,
     account_settings::AccountSettings,
     account_switcher::{AccountSwitcherButton, AccountSwitcherPopover},
@@ -132,6 +132,18 @@ mod imp {
                 },
             );
 
+            klass.install_action("win.new-window", None, |obj, _, _| {
+                let app = Application::default();
+                let window = super::Window::new(&app);
+                if let Some(session_id) = obj.current_session_id() {
+                    window.set_current_session_by_id(&session_id);
+                    if let Some(room) = obj.session_view().selected_room() {
+                        window.session_view().select_room(room);
+                    }
+                }
+                window.present();
+            });
+
             klass.install_action("win.new-session", None, |obj, _, _| {
                 obj.imp().set_visible_page(WindowPage::Login);
             });
@@ -181,6 +193,11 @@ mod imp {
             }
 
             self.load_window_size();
+            self.main_stack.connect_visible_child_notify(clone!(
+                #[weak(rename_to = obj)]
+                self.obj(),
+                move |_| obj.update_notification_context()
+            ));
 
             self.main_stack.connect_transition_running_notify(clone!(
                 #[weak(rename_to = imp)]
@@ -332,7 +349,8 @@ mod imp {
             }
             match result {
                 Ok(response) if response.run_in_background() => {
-                    self.obj().set_hide_on_close(true);
+                    let app = Application::default();
+                    app.allow_background();
                     self.obj().close();
                 }
                 result => {
@@ -491,12 +509,10 @@ mod imp {
             let index = index as u32;
             let prev_selected = self.session_selection.selected();
 
-            if index == prev_selected {
-                // Make sure the session is displayed;
-                self.show_session();
-            } else {
+            if index != prev_selected {
                 self.session_selection.set_selected(index);
             }
+            self.show_session();
 
             true
         }
@@ -508,9 +524,16 @@ mod imp {
                 .selected_item()
                 .and_downcast::<SessionInfo>()
             else {
+                self.session_view.set_session(None::<&Session>);
+                self.obj().set_title(Some(APP_NAME));
+                self.obj().update_notification_context();
                 return;
             };
 
+            self.obj().set_title(Some(&format!(
+                "{} — {APP_NAME}",
+                selected_session.user_id()
+            )));
             let session = selected_session.downcast_ref::<Session>();
             self.session_view.set_session(session);
 
@@ -522,6 +545,7 @@ mod imp {
             ) {
                 self.show_session();
             }
+            self.obj().update_notification_context();
         }
 
         /// Show the selected session.
@@ -624,7 +648,7 @@ impl Window {
         let active = app
             .active_window()
             .and_downcast::<Window>()
-            .filter(|window| window.is_active() && window.is_visible());
+            .filter(|window| window.is_active() && window.session_view().is_mapped());
         for item in app.session_list().iter::<SessionInfo>().flatten() {
             if let Ok(session) = item.downcast::<Session>() {
                 let room = active
@@ -644,8 +668,13 @@ impl Window {
             .property("icon-name", Some(APP_ID))
             .build();
         #[cfg(target_os = "linux")]
-        window.set_hide_on_close(!ashpd::is_sandboxed());
+        window.set_hide_on_close(!ashpd::is_sandboxed() || app.background_allowed());
         window
+    }
+
+    /// Select an existing account and show its session page.
+    pub(super) fn set_current_session_by_id(&self, session_id: &str) -> bool {
+        self.imp().set_current_session_by_id(session_id)
     }
 
     /// Add the given session to the session list and select it.

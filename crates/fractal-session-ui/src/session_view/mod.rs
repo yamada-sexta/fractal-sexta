@@ -32,7 +32,7 @@ use crate::{
 };
 
 mod imp {
-    use std::cell::RefCell;
+    use std::{cell::RefCell, collections::HashMap};
 
     use glib::subclass::InitializingObject;
 
@@ -62,6 +62,10 @@ mod imp {
         /// The current session.
         #[property(get, set = Self::set_session, explicit_notify, nullable)]
         session: glib::WeakRef<Session>,
+        /// Sidebar state is retained per account in this view only.
+        sidebar_models: RefCell<HashMap<String, SidebarListModel>>,
+        #[property(get = Self::sidebar_list_model, nullable)]
+        sidebar_list_model: std::marker::PhantomData<Option<SidebarListModel>>,
         window_active_handler_id: RefCell<Option<glib::SignalHandlerId>>,
     }
 
@@ -227,6 +231,12 @@ mod imp {
                 }
             ));
 
+            obj.connect_map(|obj| {
+                obj.imp().withdraw_selected_item_notifications();
+                obj.notify_selected_room();
+            });
+            obj.connect_unmap(super::SessionView::notify_selected_room);
+
             obj.connect_root_notify(|obj| {
                 let imp = obj.imp();
 
@@ -259,6 +269,7 @@ mod imp {
         }
 
         fn dispose(&self) {
+            self.sidebar_models.borrow_mut().clear();
             if let Some(handler_id) = self.window_active_handler_id.take()
                 && let Some(window) = self.parent_window()
             {
@@ -277,15 +288,43 @@ mod imp {
                 return;
             }
 
+            if let Some(session) = session {
+                let session_id = session.session_id().to_owned();
+                self.sidebar_models
+                    .borrow_mut()
+                    .entry(session_id)
+                    .or_insert_with(|| {
+                        let items = SidebarItemList::new(
+                            &session.room_list(),
+                            &session.verification_list(),
+                        );
+                        session.connect_logged_out(clone!(
+                            #[weak(rename_to = imp)]
+                            self,
+                            move |session| {
+                                if imp.session.upgrade().as_ref() == Some(session) {
+                                    imp.set_session(None);
+                                }
+                                imp.sidebar_models.borrow_mut().remove(session.session_id());
+                            }
+                        ));
+                        SidebarListModel::new(&items)
+                    });
+            }
+
             self.session.set(session);
             self.obj().notify_session();
+            self.obj().notify_sidebar_list_model();
         }
 
         /// Get the [`SidebarListModel`] of the current session.
         fn sidebar_list_model(&self) -> Option<SidebarListModel> {
-            self.session
-                .upgrade()
-                .map(|session| session.sidebar_list_model())
+            self.session.upgrade().and_then(|session| {
+                self.sidebar_models
+                    .borrow()
+                    .get(session.session_id())
+                    .cloned()
+            })
         }
 
         /// Get the [`SidebarItemList`] of the current session.
@@ -387,6 +426,13 @@ mod imp {
 
         /// Withdraw the notifications for the currently selected item.
         fn withdraw_selected_item_notifications(&self) {
+            if !self.obj().is_mapped()
+                || !self
+                    .parent_window()
+                    .is_some_and(|window| window.is_active() && window.is_visible())
+            {
+                return;
+            }
             let Some(session) = self.session.upgrade() else {
                 return;
             };

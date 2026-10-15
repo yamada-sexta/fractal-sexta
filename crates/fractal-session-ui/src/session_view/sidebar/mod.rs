@@ -24,7 +24,7 @@ use crate::{
         CryptoIdentityState, RecoveryState, RoomCategory, Session, SessionVerificationState,
         SidebarListModel, SidebarSection, TargetRoomCategory, User,
     },
-    utils::FixedSelection,
+    utils::{BoundObjectWeakRef, FixedSelection},
 };
 
 mod imp {
@@ -70,6 +70,7 @@ mod imp {
         /// The list model of this sidebar.
         #[property(get, set = Self::set_list_model, explicit_notify, nullable)]
         list_model: glib::WeakRef<SidebarListModel>,
+        selection: BoundObjectWeakRef<FixedSelection>,
         session_handler: RefCell<Option<glib::SignalHandlerId>>,
         security_handlers: RefCell<Vec<glib::SignalHandlerId>>,
     }
@@ -268,19 +269,22 @@ mod imp {
             let obj = self.obj();
 
             self.list_model.set(list_model);
+            self.selection.disconnect_signals();
 
             if let Some(list_model) = list_model {
                 self.update_search_filter();
 
                 self.update_room_stack(&list_model.selection_model());
 
-                list_model.selection_model().connect_is_empty_notify(clone!(
+                let handler = list_model.selection_model().connect_is_empty_notify(clone!(
                     #[weak(rename_to = imp)]
                     self,
                     move |list| {
                         imp.update_room_stack(list);
                     }
                 ));
+                self.selection
+                    .set(&list_model.selection_model(), vec![handler]);
             }
 
             obj.notify_list_model();

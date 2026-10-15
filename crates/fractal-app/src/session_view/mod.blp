@@ -17,11 +17,11 @@ template $SessionView: Adw.Bin {
 
         sidebar: $Sidebar sidebar {
           user: bind template.session as <$Session>.user;
-          list-model: bind template.session as <$Session>.sidebar-list-model;
+          list-model: bind template.sidebar-list-model;
         };
 
         content: $Content content {
-          session: bind template.session;
+          list-model: bind template.sidebar-list-model;
           only-view: bind template.compact;
         };
       }

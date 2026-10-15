@@ -33,6 +33,8 @@ mod imp {
         intent_handler: BoundObjectWeakRef<glib::Object>,
         last_network_state: Cell<NetworkState>,
         pub(super) quitting: Cell<bool>,
+        #[cfg(target_os = "linux")]
+        pub(super) background_allowed: Cell<bool>,
     }
 
     impl Default for Application {
@@ -44,6 +46,8 @@ mod imp {
                 intent_handler: Default::default(),
                 last_network_state: Default::default(),
                 quitting: Default::default(),
+                #[cfg(target_os = "linux")]
+                background_allowed: Default::default(),
             }
         }
     }
@@ -150,11 +154,25 @@ mod imp {
         fn present_main_window(&self) -> Window {
             let window = self
                 .obj()
-                .windows()
-                .into_iter()
-                .find_map(|window| window.downcast::<Window>().ok())
+                .main_window()
                 .unwrap_or_else(|| Window::new(&self.obj()));
 
+            window.present();
+            window
+        }
+
+        /// Present a matching account window without switching another
+        /// account's window.
+        fn present_session_window(&self, session_id: &str) -> Window {
+            let window = self
+                .obj()
+                .windows()
+                .into_iter()
+                .filter_map(|window| window.downcast::<Window>().ok())
+                .filter(|window| window.current_session_id().as_deref() == Some(session_id))
+                .min_by_key(|window| (!window.is_active(), !window.is_visible()))
+                .unwrap_or_else(|| Window::new(&self.obj()));
+            window.set_current_session_by_id(session_id);
             window.present();
             window
         }
@@ -166,11 +184,7 @@ mod imp {
                 gio::ActionEntry::builder("quit")
                     .activate(|obj: &super::Application, _, _| {
                         obj.imp().quitting.set(true);
-                        for window in obj
-                            .windows()
-                            .into_iter()
-                            .filter_map(|window| window.downcast::<Window>().ok())
-                        {
+                        if let Some(window) = obj.main_window() {
                             window.save_state();
                         }
 
@@ -389,6 +403,7 @@ mod imp {
             debug!(session = session_id, ?intent, "Processing session intent…");
 
             if session_info.is::<FailedSession>() {
+                self.present_session_window(&session_id);
                 // We can't do anything, it should show an error screen.
                 warn!(
                     session = session_id,
@@ -397,7 +412,7 @@ mod imp {
                 );
             } else if let Some(session) = session_info.downcast_ref::<Session>() {
                 if session.state() == SessionState::Ready {
-                    self.present_main_window()
+                    self.present_session_window(session.session_id())
                         .process_session_intent(session.session_id(), intent);
                 } else {
                     debug!(
@@ -416,8 +431,7 @@ mod imp {
                             imp.intent_handler.disconnect_signals();
 
                             if let Some((session_id, intent)) = cell.take() {
-                                imp.present_main_window()
-                                    .process_session_intent(&session_id, intent);
+                                imp.process_session_intent(session_id, intent);
                             }
                         }
                     ));
@@ -481,6 +495,32 @@ glib::wrapper! {
 }
 
 impl Application {
+    /// The most recently active main window, including hidden windows.
+    pub(super) fn main_window(&self) -> Option<Window> {
+        self.active_window().and_downcast::<Window>().or_else(|| {
+            self.windows()
+                .into_iter()
+                .find_map(|window| window.downcast::<Window>().ok())
+        })
+    }
+
+    #[cfg(target_os = "linux")]
+    pub(super) fn background_allowed(&self) -> bool {
+        self.imp().background_allowed.get()
+    }
+
+    #[cfg(target_os = "linux")]
+    pub(super) fn allow_background(&self) {
+        self.imp().background_allowed.set(true);
+        for window in self
+            .windows()
+            .into_iter()
+            .filter_map(|window| window.downcast::<Window>().ok())
+        {
+            window.set_hide_on_close(true);
+        }
+    }
+
     pub(super) fn is_quitting(&self) -> bool {
         self.imp().quitting.get()
     }

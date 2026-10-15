@@ -2,6 +2,7 @@ use adw::{prelude::*, subclass::prelude::*};
 use gettextrs::gettext;
 use gtk::{glib, glib::clone};
 
+use super::SessionView;
 use crate::{
     components::{
         Avatar, AvatarImageSafetySetting, LabelWithWidgets, LoadingButton, Pill,
@@ -150,16 +151,14 @@ mod imp {
                         if category == RoomCategory::Left {
                             // We declined the invite or the invite was retracted, we should close
                             // the room if it is opened.
-                            let Some(session) = room.session() else {
-                                return;
-                            };
-                            let selection = session.sidebar_list_model().selection_model();
-                            if selection
-                                .selected_item()
-                                .and_downcast::<Room>()
-                                .is_some_and(|selected_room| selected_room == *room)
+                            if let Some(view) = imp
+                                .obj()
+                                .ancestor(SessionView::static_type())
+                                .and_downcast::<SessionView>()
+                                && view.selected_room().as_ref() == Some(room)
                             {
-                                selection.set_selected_item(None::<glib::Object>);
+                                view.activate_action("session.close-room", None)
+                                    .expect("`session.close-room` action should exist");
                             }
                         }
 
