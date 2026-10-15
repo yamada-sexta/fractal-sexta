@@ -114,7 +114,9 @@ crates/fractal-app/src/session_view/room_history/state/creation.blp
 crates/fractal-app/src/session_view/room_history/title.blp
 crates/fractal-app/src/session_view/sidebar/mod.blp
 crates/fractal-app/src/shortcuts-dialog.blp
+crates/fractal-app/src/tray.rs
 crates/fractal-app/src/window.blp
+crates/fractal-app/src/window.rs
 crates/fractal-backend/src/components/pill/at_room.rs
 crates/fractal-backend/src/secret/linux.rs
 crates/fractal-backend/src/session/mod.rs

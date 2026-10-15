@@ -7,6 +7,8 @@
 mod application;
 mod config;
 mod error_page;
+#[cfg(target_os = "linux")]
+mod tray;
 mod window;
 pub use application::*;
 pub use config::*;

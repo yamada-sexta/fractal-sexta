@@ -9,6 +9,9 @@ publish = false
 
 [target.'cfg(target_os = "linux")'.dependencies]
 aperture.workspace = true
+ashpd = { workspace = true, features = ["background", "gtk4"] }
+ksni.workspace = true
+tokio.workspace = true
 
 [package.metadata.cargo-machete]
 ignored = ["serde_bytes"]

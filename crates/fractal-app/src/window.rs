@@ -1,6 +1,8 @@
 use std::cell::Cell;
 
 use adw::{prelude::*, subclass::prelude::*};
+#[cfg(target_os = "linux")]
+use gettextrs::gettext;
 use gtk::{gdk, gio, glib, glib::clone};
 use tracing::{error, warn};
 
@@ -98,6 +100,8 @@ mod imp {
         /// The account switcher popover.
         #[property(get)]
         pub(super) account_switcher: AccountSwitcherPopover,
+        #[cfg(target_os = "linux")]
+        background_request_pending: Cell<bool>,
     }
 
     #[glib::object_subclass]
@@ -163,6 +167,8 @@ mod imp {
             ));
             self.obj()
                 .connect_is_active_notify(super::Window::update_notification_context);
+            self.obj()
+                .connect_visible_notify(super::Window::update_notification_context);
             self.session_view.connect_selected_room_notify(clone!(
                 #[weak(rename_to = obj)]
                 self.obj(),
@@ -244,11 +250,20 @@ mod imp {
 
     impl WindowImpl for Window {
         fn close_request(&self) -> glib::Propagation {
-            if let Err(error) = self.save_window_size() {
-                warn!("Could not save window state: {error}");
-            }
-            if let Err(error) = self.save_current_visible_session() {
-                warn!("Could not save current session: {error}");
+            self.save_state();
+
+            #[cfg(target_os = "linux")]
+            if !self.obj().hides_on_close() && ashpd::is_sandboxed() {
+                if !self.background_request_pending.replace(true) {
+                    crate::spawn!(clone!(
+                        #[weak(rename_to = imp)]
+                        self,
+                        async move {
+                            imp.request_background().await;
+                        }
+                    ));
+                }
+                return glib::Propagation::Stop;
             }
 
             glib::Propagation::Proceed
@@ -270,6 +285,68 @@ mod imp {
     impl AdwApplicationWindowImpl for Window {}
 
     impl Window {
+        pub(super) fn save_state(&self) {
+            if let Err(error) = self.save_window_size() {
+                warn!("Could not save window state: {error}");
+            }
+            if let Err(error) = self.save_current_visible_session() {
+                warn!("Could not save current session: {error}");
+            }
+        }
+
+        #[cfg(target_os = "linux")]
+        async fn request_background(&self) {
+            use ashpd::{
+                WindowIdentifier, WindowIdentifierType,
+                desktop::background::{BackgroundProxy, BackgroundRequestOptions},
+            };
+
+            let identifier = WindowIdentifier::from_native(&*self.obj()).await;
+            // Keep the GTK handle on this thread; send only its identifier to Tokio.
+            let parent = identifier.as_ref().map(ToString::to_string);
+            let result = crate::spawn_tokio!(async move {
+                let parent = parent
+                    .map(WindowIdentifierType::try_from)
+                    .transpose()?
+                    .map(WindowIdentifier::from);
+                BackgroundProxy::new()
+                    .await?
+                    .request_background(
+                        parent.as_ref(),
+                        BackgroundRequestOptions::default()
+                            .set_reason(gettext(
+                                "Continue receiving message notifications with the window closed",
+                            ).as_str())
+                            .set_auto_start(false),
+                    )
+                    .await?
+                    .response()
+            })
+            .await
+            .expect("task was not aborted");
+            drop(identifier);
+
+            self.background_request_pending.set(false);
+            if Application::default().is_quitting() {
+                return;
+            }
+            match result {
+                Ok(response) if response.run_in_background() => {
+                    self.obj().set_hide_on_close(true);
+                    self.obj().close();
+                }
+                result => {
+                    warn!(?result, "Background operation was not allowed");
+                    toast!(
+                        self.obj(),
+                        gettext(
+                            "Could not run in the background. Keep the window open to receive notifications."
+                        )
+                    );
+                }
+            }
+        }
+
         /// Set whether the window should be in compact view.
         fn set_compact(&self, compact: bool) {
             if compact == self.compact.get() {
@@ -536,6 +613,10 @@ glib::wrapper! {
 }
 
 impl Window {
+    pub(super) fn save_state(&self) {
+        self.imp().save_state();
+    }
+
     fn update_notification_context(&self) {
         let Some(app) = self.application().and_downcast::<Application>() else {
             return;
@@ -543,7 +624,7 @@ impl Window {
         let active = app
             .active_window()
             .and_downcast::<Window>()
-            .filter(GtkWindowExt::is_active);
+            .filter(|window| window.is_active() && window.is_visible());
         for item in app.session_list().iter::<SessionInfo>().flatten() {
             if let Ok(session) = item.downcast::<Session>() {
                 let room = active
@@ -558,10 +639,13 @@ impl Window {
         }
     }
     pub fn new(app: &Application) -> Self {
-        glib::Object::builder()
+        let window: Self = glib::Object::builder()
             .property("application", Some(app))
             .property("icon-name", Some(APP_ID))
-            .build()
+            .build();
+        #[cfg(target_os = "linux")]
+        window.set_hide_on_close(!ashpd::is_sandboxed());
+        window
     }
 
     /// Add the given session to the session list and select it.

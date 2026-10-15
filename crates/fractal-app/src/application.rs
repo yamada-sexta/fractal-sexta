@@ -32,6 +32,7 @@ mod imp {
         pub(super) session_list: SessionList,
         intent_handler: BoundObjectWeakRef<glib::Object>,
         last_network_state: Cell<NetworkState>,
+        pub(super) quitting: Cell<bool>,
     }
 
     impl Default for Application {
@@ -42,6 +43,7 @@ mod imp {
                 session_list: Default::default(),
                 intent_handler: Default::default(),
                 last_network_state: Default::default(),
+                quitting: Default::default(),
             }
         }
     }
@@ -116,6 +118,9 @@ mod imp {
 
             // Set icons for shell
             gtk::Window::set_default_icon_name(crate::APP_ID);
+
+            #[cfg(target_os = "linux")]
+            crate::tray::start(&self.obj());
         }
 
         fn open(&self, files: &[gio::File], _hint: &str) {
@@ -143,11 +148,12 @@ mod imp {
         ///
         /// Returns the main window.
         fn present_main_window(&self) -> Window {
-            let window = if let Some(window) = self.obj().active_window().and_downcast() {
-                window
-            } else {
-                Window::new(&self.obj())
-            };
+            let window = self
+                .obj()
+                .windows()
+                .into_iter()
+                .find_map(|window| window.downcast::<Window>().ok())
+                .unwrap_or_else(|| Window::new(&self.obj()));
 
             window.present();
             window
@@ -159,10 +165,13 @@ mod imp {
                 // Quit
                 gio::ActionEntry::builder("quit")
                     .activate(|obj: &super::Application, _, _| {
-                        if let Some(window) = obj.active_window() {
-                            // This is needed to trigger the close request and save the window
-                            // state.
-                            window.close();
+                        obj.imp().quitting.set(true);
+                        for window in obj
+                            .windows()
+                            .into_iter()
+                            .filter_map(|window| window.downcast::<Window>().ok())
+                        {
+                            window.save_state();
                         }
 
                         obj.quit();
@@ -472,6 +481,10 @@ glib::wrapper! {
 }
 
 impl Application {
+    pub(super) fn is_quitting(&self) -> bool {
+        self.imp().quitting.get()
+    }
+
     pub fn new() -> Self {
         glib::Object::builder()
             .property("application-id", Some(config::APP_ID))
@@ -548,5 +561,44 @@ impl NetworkState {
 impl Default for NetworkState {
     fn default() -> Self {
         Self::Available(gio::NetworkConnectivity::Full)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[gtk::test]
+    fn closing_and_reopening_reuses_the_main_window() {
+        fractal_gtk_utils::tests::load_gresources();
+        adw::init().unwrap();
+        gst::init().unwrap();
+        #[cfg(target_os = "linux")]
+        aperture::init(crate::APP_ID);
+        let app = Application::new();
+        app.settings().delay();
+        app.set_flags(gio::ApplicationFlags::NON_UNIQUE | gio::ApplicationFlags::HANDLES_OPEN);
+        app.register(None::<&gio::Cancellable>).unwrap();
+        app.activate();
+
+        let window = app.windows()[0].clone().downcast::<Window>().unwrap();
+        window.set_hide_on_close(true);
+        window.set_default_size(800, 600);
+        window.close();
+        assert!(!window.is_visible());
+        assert_eq!(app.windows().len(), 1);
+        assert_eq!(app.settings().int("window-width"), 800);
+
+        app.activate();
+        assert!(window.is_visible());
+        assert_eq!(app.windows(), vec![window.clone().upcast::<gtk::Window>()]);
+
+        window.close();
+        window.set_default_size(820, 640);
+        app.activate_action("quit", None);
+        assert!(app.is_quitting());
+        assert_eq!(app.settings().int("window-width"), 820);
+        window.destroy();
+        app.settings().revert();
     }
 }

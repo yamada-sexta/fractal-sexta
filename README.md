@@ -109,6 +109,7 @@ following dependencies at runtime:
   * Camera: scan QR codes during verification.
   * Location: send the user’s location in a conversation.
   * Settings: get the 12h/24h time format system preference.
+  * Background: allow the Flatpak to receive notifications with its window closed.
 * GStreamer plugins:
   * gst-plugin-gtk4 (gstgtk4): required to preview videos in the timeline and to present the output
     of the camera.
@@ -177,9 +178,14 @@ Does Fractal have encryption support?
 
 Can I run Fractal with the window closed?
 
-: Currently Fractal does not support this. Fractal is a GNOME application, and accordingly adheres to
-  the GNOME guidelines and paradigms. This will be revisited [if or when GNOME gets a proper paradigm
-  to interact with apps running in the background](https://gitlab.gnome.org/World/fractal/-/issues/228#note_2054826).
+: **Yes.** On Linux, closing the window keeps Fractal Sexta running and receiving notifications.
+  The Flatpak requests background permission the first time you close the window. If permission is
+  denied or the Background portal is unavailable, the window stays open with an explanation.
+
+  KDE shows a system tray indicator with **Open** and **Quit**. GNOME needs an AppIndicator /
+  StatusNotifierItem extension to show it. Background operation also works without an indicator:
+  reopen Fractal Sexta from the application launcher or a notification. **Ctrl+Q** quits the app;
+  closing the window only hides it. The app does not start automatically at login.
 
 ## The origin of Fractal
 

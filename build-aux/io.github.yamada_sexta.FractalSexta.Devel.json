@@ -13,6 +13,7 @@
         "--socket=pulseaudio",
         "--share=network",
         "--share=ipc",
+        "--talk-name=org.kde.StatusNotifierWatcher",
         "--device=dri",
         "--env=RUST_LOG=fractal=debug,warn",
         "--env=G_MESSAGES_DEBUG=none",
