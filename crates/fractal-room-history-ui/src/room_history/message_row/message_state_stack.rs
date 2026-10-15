@@ -8,7 +8,7 @@ use crate::session::MessageState;
 const SENT_VISIBLE_SECONDS: u32 = 3;
 
 mod imp {
-    use std::cell::Cell;
+    use std::cell::{Cell, RefCell};
 
     use glib::subclass::InitializingObject;
 
@@ -25,6 +25,7 @@ mod imp {
         state: Cell<MessageState>,
         #[template_child]
         stack: TemplateChild<gtk::Stack>,
+        sent_timeout: RefCell<Option<glib::SourceId>>,
     }
 
     #[glib::object_subclass]
@@ -43,12 +44,29 @@ mod imp {
     }
 
     #[glib::derived_properties]
-    impl ObjectImpl for MessageStateStack {}
+    impl ObjectImpl for MessageStateStack {
+        fn dispose(&self) {
+            self.cancel_sent_timeout();
+        }
+    }
 
     impl WidgetImpl for MessageStateStack {}
     impl BinImpl for MessageStateStack {}
 
     impl MessageStateStack {
+        fn cancel_sent_timeout(&self) {
+            if let Some(source) = self.sent_timeout.take() {
+                source.remove();
+            }
+        }
+
+        pub(super) fn clear(&self) {
+            self.cancel_sent_timeout();
+            self.state.set(MessageState::None);
+            self.stack.set_visible_child_name("none");
+            self.obj().notify_state();
+        }
+
         /// Set the state to display.
         fn set_state(&self, state: MessageState) {
             let prev_state = self.state.get();
@@ -57,62 +75,38 @@ mod imp {
                 return;
             }
 
-            let stack = &self.stack;
-
+            self.cancel_sent_timeout();
             let name = match state {
-                MessageState::None => {
-                    if matches!(
-                        prev_state,
-                        MessageState::Sending
-                            | MessageState::RecoverableError
-                            | MessageState::PermanentError
-                    ) {
-                        // Show the sent icon for a few seconds.
-                        glib::timeout_add_seconds_local_once(
-                            SENT_VISIBLE_SECONDS,
-                            clone!(
-                                #[weak]
-                                stack,
-                                move || {
-                                    stack.set_visible_child_name("none");
-                                }
-                            ),
-                        );
-
-                        "sent"
-                    } else {
-                        "none"
-                    }
-                }
+                MessageState::None => "none",
                 MessageState::Sending => "sending",
                 MessageState::RecoverableError => "warning",
                 MessageState::PermanentError => "error",
-                MessageState::Edited => {
-                    if matches!(
-                        prev_state,
-                        MessageState::Sending
-                            | MessageState::RecoverableError
-                            | MessageState::PermanentError
-                    ) {
-                        // Show the sent icon for a few seconds.
-                        glib::timeout_add_seconds_local_once(
-                            SENT_VISIBLE_SECONDS,
-                            clone!(
-                                #[weak]
-                                stack,
-                                move || {
-                                    stack.set_visible_child_name("edited");
-                                }
-                            ),
-                        );
-
-                        "sent"
-                    } else {
-                        "edited"
-                    }
-                }
+                MessageState::Edited => "edited",
             };
-            stack.set_visible_child_name(name);
+            let acknowledge_sent = matches!(state, MessageState::None | MessageState::Edited)
+                && matches!(
+                    prev_state,
+                    MessageState::Sending
+                        | MessageState::RecoverableError
+                        | MessageState::PermanentError
+                );
+            if acknowledge_sent {
+                self.stack.set_visible_child_name("sent");
+                let source = glib::timeout_add_seconds_local_once(
+                    SENT_VISIBLE_SECONDS,
+                    clone!(
+                        #[weak(rename_to = imp)]
+                        self,
+                        move || {
+                            imp.sent_timeout.take();
+                            imp.stack.set_visible_child_name(name);
+                        }
+                    ),
+                );
+                self.sent_timeout.replace(Some(source));
+            } else {
+                self.stack.set_visible_child_name(name);
+            }
 
             self.state.set(state);
             self.obj().notify_state();
@@ -131,5 +125,9 @@ impl MessageStateStack {
     /// Create a new `MessageStateStack`.
     pub fn new() -> Self {
         glib::Object::new()
+    }
+
+    pub(super) fn clear(&self) {
+        self.imp().clear();
     }
 }

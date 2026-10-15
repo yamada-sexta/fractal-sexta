@@ -51,7 +51,7 @@ mod imp {
         #[template_child]
         pub(super) content: TemplateChild<MessageContent>,
         #[template_child]
-        message_state: TemplateChild<MessageStateStack>,
+        pub(super) message_state: TemplateChild<MessageStateStack>,
         #[template_child]
         reactions: TemplateChild<MessageReactionList>,
         #[template_child]
@@ -141,6 +141,7 @@ mod imp {
                 self.avatar.set_data(None::<crate::components::AvatarData>);
                 self.reactions.clear();
                 self.read_receipts.clear();
+                self.message_state.clear();
                 self.content.set_child(None::<&gtk::Widget>);
                 self.content.notify_texture();
                 obj.notify_event();
@@ -306,6 +307,12 @@ mod tests {
 
         assert!(weak_avatar.upgrade().is_some());
         assert!(weak_texture.upgrade().is_some());
+        row.imp()
+            .message_state
+            .set_state(crate::session::MessageState::Sending);
+        row.imp()
+            .message_state
+            .set_state(crate::session::MessageState::Edited);
         row.set_event(None::<Event>);
         row.set_event(None::<Event>);
         assert!(template.is_some());
@@ -314,6 +321,16 @@ mod tests {
         assert!(weak_texture.upgrade().is_none());
         assert!(row.event().is_none());
         assert!(row.sender().is_none());
+        let state_stack = row
+            .imp()
+            .message_state
+            .child()
+            .unwrap()
+            .downcast::<gtk::Stack>()
+            .unwrap();
+        assert_eq!(state_stack.visible_child_name().as_deref(), Some("none"));
+        glib::MainContext::default().block_on(glib::timeout_future_seconds(4));
+        assert_eq!(state_stack.visible_child_name().as_deref(), Some("none"));
         gtk::gio::resources_unregister(&resource);
     }
 }
