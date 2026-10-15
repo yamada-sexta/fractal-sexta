@@ -265,6 +265,7 @@ mod imp {
             let obj = self.obj();
             let child = obj.child_or_default::<LabelWithWidgets>();
 
+            child.set_selectable(true);
             child.add_css_class("document");
             child.set_ellipsize(ellipsize);
             child.set_use_markup(true);

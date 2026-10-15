@@ -42,6 +42,7 @@ pub(super) fn new_message_label() -> gtk::Label {
         .xalign(0.0)
         .valign(gtk::Align::Start)
         .use_markup(true)
+        .selectable(true)
         .css_classes(["document"])
         .build()
 }
@@ -202,6 +203,7 @@ fn label_for_inline_html(
             }
         }
         let w = LabelWithWidgets::new();
+        w.set_selectable(true);
         w.add_css_class("document");
         w.set_use_markup(true);
         w.set_ellipsize(config.ellipsize);

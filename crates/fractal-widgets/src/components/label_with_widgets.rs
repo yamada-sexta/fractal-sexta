@@ -14,7 +14,7 @@ mod imp {
     #[properties(wrapper_type = super::LabelWithWidgets)]
     pub struct LabelWithWidgets {
         /// The child `GtkLabel`.
-        child: gtk::Label,
+        pub(super) child: gtk::Label,
         /// The widgets to display in the label.
         widgets: RefCell<Vec<gtk::Widget>>,
         widgets_sizes: RefCell<Vec<(i32, i32)>>,
@@ -327,6 +327,11 @@ impl LabelWithWidgets {
     /// Create an empty `LabelWithWidget`.
     pub fn new() -> Self {
         glib::Object::new()
+    }
+
+    /// Set whether the text can be selected.
+    pub fn set_selectable(&self, selectable: bool) {
+        self.imp().child.set_selectable(selectable);
     }
 
     /// Set the label and widgets to display.
