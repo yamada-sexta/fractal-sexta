@@ -36,3 +36,5 @@ Never cut: validation at trust boundaries, error handling that prevents data los
 use git mv to move tracked files.
 
 Never add tests unless explicitly told so.
+
+Only run cargo check locally, and only build remotely by commit and push. Watch it with gh CLI.
