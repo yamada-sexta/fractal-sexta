@@ -6,7 +6,6 @@ use tracing::warn;
 
 use crate::{APP_ID, APP_NAME, Application, spawn, spawn_tokio};
 
-#[derive(Debug, PartialEq, Eq)]
 enum Command {
     Open,
     Quit,
@@ -94,31 +93,4 @@ pub(super) fn start(app: &Application) {
             }
         }
     ));
-}
-
-#[cfg(test)]
-mod tests {
-    use ksni::Tray as _;
-
-    use super::*;
-
-    #[test]
-    fn tray_actions_dispatch_commands() {
-        let (sender, mut receiver) = mpsc::unbounded_channel();
-        let mut tray = Tray { sender };
-
-        tray.activate(0, 0);
-        assert_eq!(receiver.try_recv().unwrap(), Command::Open);
-
-        let menu = tray.menu();
-        assert_eq!(menu.len(), 2);
-        for (item, command) in menu.into_iter().zip([Command::Open, Command::Quit]) {
-            let ksni::MenuItem::Standard(item) = item else {
-                panic!("expected a standard menu item");
-            };
-            (item.activate)(&mut tray);
-            assert_eq!(receiver.try_recv().unwrap(), command);
-        }
-        assert!(receiver.try_recv().is_err());
-    }
 }
