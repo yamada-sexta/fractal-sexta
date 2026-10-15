@@ -146,21 +146,51 @@ mod imp {
                 .build();
 
             if let Ok(file) = dialog.save_future(parent_window.as_ref()).await {
-                if let Err(error) = file.replace_contents(
-                    &data,
-                    None,
-                    false,
-                    gio::FileCreateFlags::REPLACE_DESTINATION,
-                    gio::Cancellable::NONE,
-                ) {
+                if let Err((_, error)) = file
+                    .replace_contents_future(
+                        data,
+                        None,
+                        false,
+                        gio::FileCreateFlags::REPLACE_DESTINATION,
+                    )
+                    .await
+                {
                     error!("Could not write file content: {error}");
                     toast!(obj, gettext("Could not save file"));
                     return;
                 }
 
+                self.set_saved_file(&event, file);
+            }
+        }
+        fn set_saved_file(&self, event: &HistoryViewerEvent, file: gio::File) {
+            if self.event.borrow().as_ref() == Some(event) {
                 self.file.replace(Some(file));
                 self.update_button();
             }
+        }
+    }
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[gtk::test]
+        fn saved_files_stay_with_their_event() {
+            adw::init().expect("Adwaita should initialize");
+            crate::utils::tests::load_gresources();
+            let row = super::super::FileRow::new();
+            let previous = glib::Object::new::<HistoryViewerEvent>();
+            let current = glib::Object::new::<HistoryViewerEvent>();
+            let file = gio::File::for_path("/tmp/fractal-saved-attachment");
+            row.imp().event.replace(Some(current.clone()));
+            row.imp().set_saved_file(&previous, file.clone());
+            assert!(row.imp().file.borrow().is_none());
+            row.imp().set_saved_file(&current, file.clone());
+            assert_eq!(row.imp().file.borrow().as_ref(), Some(&file));
+            assert_eq!(
+                row.imp().button.icon_name().as_deref(),
+                Some("document-symbolic")
+            );
         }
     }
 }

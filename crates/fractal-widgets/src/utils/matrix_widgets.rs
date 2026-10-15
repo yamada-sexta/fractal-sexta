@@ -144,13 +144,15 @@ impl MediaMessageSaveExt for MediaMessage {
             .await
         {
             Ok(file) => {
-                if let Err(error) = file.replace_contents(
-                    &data,
-                    None,
-                    false,
-                    gio::FileCreateFlags::REPLACE_DESTINATION,
-                    gio::Cancellable::NONE,
-                ) {
+                if let Err((_, error)) = file
+                    .replace_contents_future(
+                        data,
+                        None,
+                        false,
+                        gio::FileCreateFlags::REPLACE_DESTINATION,
+                    )
+                    .await
+                {
                     error!("Could not save file: {error}");
                     toast!(parent, gettext("Could not save file"));
                 }
