@@ -277,7 +277,12 @@ mod imp {
 
                 self.build_event_widget(event);
             } else {
-                self.obj().set_child(None::<&gtk::Widget>);
+                // Keep the message template for recycling, but release its event and media.
+                if let Some(child) = self.obj().child().and_downcast::<MessageRow>() {
+                    child.set_event(None::<Event>);
+                } else {
+                    self.obj().set_child(None::<&gtk::Widget>);
+                }
                 self.obj().set_popover(None);
             }
 
@@ -320,7 +325,7 @@ mod imp {
                     child
                 });
 
-                child.set_event(event);
+                child.set_event(Some(event));
             }
         }
 

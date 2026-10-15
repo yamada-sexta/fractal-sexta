@@ -289,19 +289,6 @@ mod imp {
                         imp.is_room_info_initialized.set(true);
                         imp.obj().notify_is_room_info_initialized();
 
-                        // Only initialize the following after we have loaded the category of the
-                        // room since we only load them for some categories.
-
-                        // Preload the timeline of rooms that the user is likely to visit and for
-                        // which we offer to show the timeline.
-                        let preload = matches!(
-                            imp.category.get(),
-                            RoomCategory::Favorite
-                                | RoomCategory::Normal
-                                | RoomCategory::LowPriority
-                        );
-                        imp.live_timeline().set_preload(preload);
-
                         imp.permissions.init(&imp.obj()).await;
                     }
                 )

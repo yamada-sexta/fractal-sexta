@@ -15,7 +15,7 @@ mod imp {
     )]
     pub struct MessageReactionList {
         #[template_child]
-        flow_box: TemplateChild<gtk::FlowBox>,
+        pub(super) flow_box: TemplateChild<gtk::FlowBox>,
     }
 
     #[glib::object_subclass]
@@ -79,5 +79,12 @@ impl MessageReactionList {
     /// Set the list of reactions.
     pub fn set_reaction_list(&self, members: &MemberList, reaction_list: &ReactionList) {
         self.imp().set_reaction_list(members, reaction_list);
+    }
+
+    /// Release the reactions when the row is recycled.
+    pub(super) fn clear(&self) {
+        self.imp()
+            .flow_box
+            .bind_model(None::<&gtk::gio::ListModel>, |_| unreachable!());
     }
 }

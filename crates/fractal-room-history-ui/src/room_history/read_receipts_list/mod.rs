@@ -135,6 +135,14 @@ mod imp {
 
     #[gtk::template_callbacks]
     impl ReadReceiptsList {
+        /// Release the source and members when the message row is recycled.
+        pub(super) fn clear(&self) {
+            self.source.disconnect_signals();
+            self.set_members(None);
+            self.list.remove_all();
+            self.obj().notify_source();
+        }
+
         /// Set the list of room members.
         fn set_members(&self, members: Option<MemberList>) {
             if *self.members.borrow() == members {
@@ -324,5 +332,9 @@ glib::wrapper! {
 impl ReadReceiptsList {
     pub fn new(members: &MemberList) -> Self {
         glib::Object::builder().property("members", members).build()
+    }
+
+    pub(super) fn clear(&self) {
+        self.imp().clear();
     }
 }

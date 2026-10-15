@@ -100,9 +100,6 @@ mod imp {
         /// Whether the timeline is empty.
         #[property(get = Self::is_empty)]
         is_empty: PhantomData<bool>,
-        /// Whether the timeline should be pre-loaded when it is ready.
-        #[property(get, set = Self::set_preload, explicit_notify)]
-        preload: Cell<bool>,
         /// Whether we have reached the start of the timeline.
         #[property(get)]
         has_reached_start: Cell<bool>,
@@ -250,10 +247,6 @@ mod imp {
 
             self.watch_read_receipts().await;
 
-            if self.preload.get() {
-                self.preload().await;
-            }
-
             self.set_state(LoadingState::Ready);
         }
 
@@ -382,36 +375,6 @@ mod imp {
             self.event_map.borrow_mut().clear();
             self.set_has_reached_start(false);
             self.set_has_room_create(false);
-        }
-
-        /// Set whether the timeline should be pre-loaded when it is ready.
-        fn set_preload(&self, preload: bool) {
-            if self.preload.get() == preload {
-                return;
-            }
-
-            self.preload.set(preload);
-            self.obj().notify_preload();
-
-            if preload && self.can_paginate_backwards() {
-                spawn!(
-                    glib::Priority::DEFAULT_IDLE,
-                    clone!(
-                        #[weak(rename_to = imp)]
-                        self,
-                        async move {
-                            imp.preload().await;
-                        }
-                    )
-                );
-            }
-        }
-
-        /// Preload the timeline, if there are not enough items.
-        async fn preload(&self) {
-            if self.filtered_sdk_items.n_items() < u32::from(MAX_BATCH_SIZE) {
-                self.paginate_backwards(|| ControlFlow::Break(())).await;
-            }
         }
 
         /// Update this timeline with the given diff list.

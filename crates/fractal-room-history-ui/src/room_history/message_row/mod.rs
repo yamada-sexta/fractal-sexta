@@ -23,7 +23,7 @@ use self::{
 };
 use super::{EventTimestamp, ReadReceiptsList};
 use crate::{
-    components::UserProfileDialog,
+    components::{Avatar, UserProfileDialog},
     prelude::*,
     session::{Event, EventHeaderState, Member},
     utils::BoundObject,
@@ -43,18 +43,22 @@ mod imp {
         #[template_child]
         avatar_button: TemplateChild<gtk::Button>,
         #[template_child]
+        pub(super) avatar: TemplateChild<Avatar>,
+        #[template_child]
         header: TemplateChild<gtk::Box>,
         #[template_child]
         display_name: TemplateChild<MessageSenderName>,
         #[template_child]
-        content: TemplateChild<MessageContent>,
+        pub(super) content: TemplateChild<MessageContent>,
         #[template_child]
         message_state: TemplateChild<MessageStateStack>,
         #[template_child]
         reactions: TemplateChild<MessageReactionList>,
+        #[template_child]
+        read_receipts: TemplateChild<ReadReceiptsList>,
         binding: RefCell<Option<glib::Binding>>,
         /// The event that is presented.
-        #[property(get, set = Self::set_event, explicit_notify)]
+        #[property(get, set = Self::set_event, explicit_notify, nullable)]
         event: BoundObject<Event>,
         /// The sender of the event that is presented.
         #[property(get = Self::sender)]
@@ -123,7 +127,7 @@ mod imp {
     #[gtk::template_callbacks]
     impl MessageRow {
         /// Set the event that is presented.
-        fn set_event(&self, event: Event) {
+        fn set_event(&self, event: Option<Event>) {
             let obj = self.obj();
 
             // Remove signals and bindings from the previous event.
@@ -131,6 +135,18 @@ mod imp {
             if let Some(binding) = self.binding.take() {
                 binding.unbind();
             }
+
+            let Some(event) = event else {
+                self.display_name.set_sender(None::<Member>);
+                self.avatar.set_data(None::<crate::components::AvatarData>);
+                self.reactions.clear();
+                self.read_receipts.clear();
+                self.content.set_child(None::<&gtk::Widget>);
+                self.content.notify_texture();
+                obj.notify_event();
+                obj.notify_sender();
+                return;
+            };
 
             let sender = event.sender();
             self.display_name.set_sender(Some(sender));
@@ -245,5 +261,59 @@ impl MessageRow {
 impl Default for MessageRow {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[gtk::test]
+    fn recycling_keeps_the_template_but_releases_avatar_and_media() {
+        adw::init().expect("Adwaita should initialize");
+        let resource = gtk::gio::Resource::load(concat!(
+            env!("FRACTAL_BUILD_DIR"),
+            "/crates/fractal-app/src/ui-resources.gresource"
+        ))
+        .expect("UI resources should be built");
+        gtk::gio::resources_register(&resource);
+        Avatar::ensure_type();
+        crate::components::OverlappingAvatars::ensure_type();
+        MessageContent::ensure_type();
+        MessageSenderName::ensure_type();
+        MessageStateStack::ensure_type();
+        MessageReactionList::ensure_type();
+
+        let row = MessageRow::new();
+        let template = row.child();
+        let avatar = crate::components::AvatarData::new();
+        let weak_avatar = avatar.downgrade();
+        row.imp().avatar.set_data(Some(&avatar));
+        drop(avatar);
+
+        let texture = gdk::MemoryTexture::new(
+            1,
+            1,
+            gdk::MemoryFormat::R8g8b8a8,
+            &glib::Bytes::from_owned(vec![255u8; 4]),
+            4,
+        );
+        let weak_texture = texture.downgrade();
+        let picture = gtk::Picture::for_paintable(&texture);
+        row.imp().content.set_child(Some(&picture));
+        drop(picture);
+        drop(texture);
+
+        assert!(weak_avatar.upgrade().is_some());
+        assert!(weak_texture.upgrade().is_some());
+        row.set_event(None::<Event>);
+        row.set_event(None::<Event>);
+        assert!(template.is_some());
+        assert_eq!(row.child(), template);
+        assert!(weak_avatar.upgrade().is_none());
+        assert!(weak_texture.upgrade().is_none());
+        assert!(row.event().is_none());
+        assert!(row.sender().is_none());
+        gtk::gio::resources_unregister(&resource);
     }
 }
