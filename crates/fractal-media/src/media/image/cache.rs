@@ -3,20 +3,24 @@ use std::{
     rc::Rc,
 };
 
+use cached::{Cached, LruCache};
 use matrix_sdk::{
     Client,
     media::{MediaFormat, MediaRequestParameters, UniqueKey},
 };
 use quick_cache::{Weighter, unsync::Cache};
+use ruma::events::room::MediaSource;
 
 use super::{Image, ImageError, ImageRequestPriority, ThumbnailDownloader, ThumbnailSettings};
 
 const PIXEL_BUDGET: u64 = 32 * 1024 * 1024;
+const LAYOUT_CAPACITY: usize = 2048;
 
 #[derive(Clone)]
 pub struct ImageCache(Rc<CacheData>);
 struct CacheData {
     entries: RefCell<Cache<String, Image, ImageWeight>>,
+    layouts: RefCell<LruCache<String, super::FrameDimensions>>,
     generation: Cell<u64>,
 }
 #[derive(Clone)]
@@ -34,6 +38,7 @@ impl Default for ImageCache {
     fn default() -> Self {
         Self(Rc::new(CacheData {
             entries: RefCell::new(Cache::with_weighter(256, PIXEL_BUDGET, ImageWeight)),
+            layouts: RefCell::new(LruCache::new(LAYOUT_CAPACITY)),
             generation: Cell::new(0),
         }))
     }
@@ -51,6 +56,22 @@ impl ImageCache {
             .generation
             .set(self.0.generation.get().wrapping_add(1));
         self.0.entries.borrow_mut().clear();
+        self.0.layouts.borrow_mut().cache_clear();
+    }
+
+    /// Resolve layout without retaining pixels or starting a decoder.
+    pub fn dimensions(&self, source: &MediaSource) -> Option<super::FrameDimensions> {
+        let key = serde_json::to_string(source).expect("media source serializes");
+        self.0.layouts.borrow_mut().cache_get(&key).copied()
+    }
+
+    /// Keep dimensions independently of the decoded thumbnail's lifetime.
+    pub fn remember_dimensions(&self, source: &MediaSource, dimensions: super::FrameDimensions) {
+        if dimensions.width == 0 || dimensions.height == 0 {
+            return;
+        }
+        let key = serde_json::to_string(source).expect("media source serializes");
+        self.0.layouts.borrow_mut().cache_set(key, dimensions);
     }
     pub async fn download(
         &self,
@@ -132,6 +153,10 @@ mod tests {
                 width: 2,
                 height: 2,
             }),
+            dimensions: super::super::FrameDimensions {
+                width: 2,
+                height: 2,
+            },
         };
         cache
             .0

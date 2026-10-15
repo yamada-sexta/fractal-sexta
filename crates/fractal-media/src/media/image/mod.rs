@@ -123,15 +123,13 @@ impl ImageDecoderSource {
     ) -> Result<Image, ImageError> {
         let (loader, file) = self.into_loader();
         let decoder = loader.load_future().await?;
+        let dimensions = FrameDimensions {
+            width: decoder.width(),
+            height: decoder.height(),
+        };
 
-        let frame_request = request_dimensions.map(|request| {
-            let original_dimensions = FrameDimensions {
-                width: decoder.width(),
-                height: decoder.height(),
-            };
-
-            original_dimensions.to_image_loader_request(request)
-        });
+        let frame_request =
+            request_dimensions.map(|request| dimensions.to_image_loader_request(request));
 
         let first_frame = if let Some(frame_request) = &frame_request {
             decoder.specific_frame_future(frame_request).await?
@@ -146,6 +144,7 @@ impl ImageDecoderSource {
             decoder: if animated { Some(decoder) } else { None },
             first_frame,
             request_dimensions,
+            dimensions,
         })
     }
 }
@@ -175,6 +174,14 @@ pub struct Image {
     /// The first frame of the image.
     first_frame: DisplayFrame,
     request_dimensions: Option<FrameDimensions>,
+    dimensions: FrameDimensions,
+}
+
+impl Image {
+    /// The decoded source dimensions before downscaling.
+    pub fn dimensions(&self) -> FrameDimensions {
+        self.dimensions
+    }
 }
 
 impl fmt::Debug for Image {

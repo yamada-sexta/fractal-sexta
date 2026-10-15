@@ -459,6 +459,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7354288c522e7e980fafd2075d63d1285794c3a6a16cdd492f189ea406e5f18b"
 
 [[package]]
+name = "cached"
+version = "3.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "194321f4fceb7c68498a662398c69f72888ffd109146f1a96a2826e127b57084"
+dependencies = [
+ "hashbrown 0.17.1",
+ "parking_lot",
+ "thiserror 2.0.21",
+ "web-time",
+]
+
+[[package]]
 name = "cairo-rs"
 version = "0.22.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1292,6 +1304,7 @@ name = "fractal-media"
 version = "14.1.0"
 dependencies = [
  "blurhash",
+ "cached",
  "fast_image_resize",
  "fractal-config",
  "fractal-core",

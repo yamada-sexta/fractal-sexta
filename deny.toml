@@ -7,6 +7,10 @@ targets = [
 [advisories]
 yanked = "deny"
 
+[[advisories.ignore]]
+id = "RUSTSEC-2026-0253"
+reason = "Only rqrr uses lru 0.16: its u8 keys cannot panic in Drop. Upgrade when aperture allows rqrr 0.11."
+
 [bans]
 multiple-versions = "allow"
 
@@ -25,6 +29,7 @@ allow = [
     "MIT",
     "MPL-2.0",
     "Unicode-3.0",
+    "Unlicense",
     "Zlib",
 ]
 

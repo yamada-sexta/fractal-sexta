@@ -8,6 +8,7 @@ publish = false
 
 [dependencies]
 blurhash.workspace = true
+cached.workspace = true
 fast_image_resize.workspace = true
 fractal-config = { path = "../fractal-config" }
 fractal-core = { path = "../fractal-core" }

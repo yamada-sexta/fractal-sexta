@@ -116,7 +116,7 @@ mod imp {
 
         /// Find the index of the list item containing the given position in the
         /// underlying model.
-        fn model_position_to_index(&self, position: u32) -> Option<usize> {
+        pub(super) fn model_position_to_index(&self, position: u32) -> Option<usize> {
             for (index, item) in self.items.borrow().iter().enumerate() {
                 if item.contains(position) {
                     return Some(index);
@@ -487,6 +487,13 @@ glib::wrapper! {
 }
 
 impl GroupingListModel {
+    /// The grouped position containing an item in the source model.
+    pub fn position_for_source_position(&self, position: u32) -> Option<u32> {
+        self.imp()
+            .model_position_to_index(position)
+            .map(|index| index as u32)
+    }
+
     /// Construct a new `GroupingListModel` with the given function to determine
     /// if adjacent items should be grouped.
     pub fn new<GroupFn>(group_fn: GroupFn) -> Self

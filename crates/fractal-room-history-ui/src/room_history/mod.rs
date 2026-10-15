@@ -17,6 +17,7 @@ mod divider_row;
 mod event_actions;
 mod event_row;
 mod event_timestamp;
+mod history_model;
 mod member_timestamp;
 mod message_row;
 mod message_toolbar;
@@ -32,6 +33,7 @@ use self::{
     event_actions::*,
     event_row::EventRow,
     event_timestamp::EventTimestamp,
+    history_model::HistoryModel,
     message_row::MessageRow,
     message_toolbar::MessageToolbar,
     read_receipts_list::ReadReceiptsList,
@@ -121,6 +123,9 @@ mod imp {
         is_sticky: Cell<bool>,
         /// The `GroupingListModel` used in the list view.
         grouping_model: OnceCell<GroupingListModel>,
+        history_model: OnceCell<HistoryModel>,
+        load_more_task: RefCell<Option<glib::JoinHandle<()>>>,
+        load_generation: Cell<u64>,
         scroll_timeout: RefCell<Option<glib::SourceId>>,
         read_timeout: RefCell<Option<glib::SourceId>>,
         room_handler: RefCell<Option<glib::SignalHandlerId>>,
@@ -464,6 +469,10 @@ mod imp {
 
         /// Disconnect all the signals.
         fn disconnect_all(&self) {
+            self.load_generation
+                .set(self.load_generation.get().wrapping_add(1));
+            // Let in-flight pagination finish so the timeline clears its loading state.
+            self.load_more_task.take();
             if let Some(room) = self.room() {
                 if let Some(handler) = self.room_handler.take() {
                     room.disconnect(handler);
@@ -602,12 +611,13 @@ mod imp {
                     .set(timeline.clone(), vec![empty_handler, state_handler]);
 
                 timeline.remove_empty_typing_row();
-                self.grouping_model().set_model(Some(timeline.items()));
+                self.history_model()
+                    .set_model(Some(timeline.items().upcast()));
 
                 self.trigger_read_receipts_update();
                 self.scroll_down();
             } else {
-                self.grouping_model().set_model(None::<gio::ListModel>);
+                self.history_model().set_model(None);
             }
 
             self.update_view();
@@ -627,14 +637,20 @@ mod imp {
         /// The `GroupingListModel` used in the list view.
         fn grouping_model(&self) -> &GroupingListModel {
             self.grouping_model.get_or_init(|| {
-                GroupingListModel::new(|lhs, rhs| {
+                let model = GroupingListModel::new(|lhs, rhs| {
                     lhs.downcast_ref::<Event>()
                         .is_some_and(Event::is_state_group_event)
                         && rhs
                             .downcast_ref::<Event>()
                             .is_some_and(Event::is_state_group_event)
-                })
+                });
+                model.set_model(Some(self.history_model().clone()));
+                model
             })
+        }
+
+        fn history_model(&self) -> &HistoryModel {
+            self.history_model.get_or_init(HistoryModel::new)
         }
 
         /// Bind the given `GtkListItem` to its item.
@@ -819,55 +835,65 @@ mod imp {
             }
 
             // Load more messages when the user gets close to the top of the known room
-            // history. Use the page size twice to detect if the user gets close to
-            // the top.
+            // history, after the current batch has been laid out.
             let adj = self
                 .listview
                 .vadjustment()
                 .expect("GtkListView has a vadjustment");
-            adj.value() < adj.page_size() * 2.0
+            adj.page_size() > 0.0 && adj.value() < adj.page_size() * 0.5
         }
 
         /// Load more events in the history if needed.
         fn load_more_events_if_needed(&self) {
-            if self.needs_more_events_at_the_start() {
-                self.load_more_events_at_the_start();
+            if !self.is_auto_scrolling.get() && self.needs_more_events_at_the_start() {
+                self.load_more_events_at_the_start(true);
             }
         }
 
         /// Load more events at the beginning of the history.
-        fn load_more_events_at_the_start(&self) {
+        fn load_more_events_at_the_start(&self, check_position: bool) {
+            if self.load_more_task.borrow().is_some() {
+                return;
+            }
             let Some(timeline) = self.timeline.obj() else {
                 return;
             };
 
-            spawn!(clone!(
-                #[weak(rename_to = imp)]
-                self,
-                async move {
-                    if imp.timeline.obj().as_ref() != Some(&timeline) {
-                        return;
+            let generation = self.load_generation.get();
+            let task = spawn!(
+                glib::Priority::DEFAULT_IDLE,
+                clone!(
+                    #[weak(rename_to = imp)]
+                    self,
+                    async move {
+                        // Let GTK settle the scroll adjustment before exposing another page.
+                        glib::timeout_future(Duration::from_millis(16)).await;
+                        if imp.load_generation.get() != generation {
+                            return;
+                        }
+                        if check_position
+                            && (imp.is_auto_scrolling.get()
+                                || !imp.needs_more_events_at_the_start())
+                        {
+                            imp.load_more_task.take();
+                            return;
+                        }
+                        let before = timeline.items().n_items();
+                        let revealed = imp.history_model().reveal_older();
+                        if !revealed {
+                            timeline.paginate_backwards(|| ControlFlow::Break(())).await;
+                        }
+                        if imp.load_generation.get() != generation {
+                            return;
+                        }
+                        imp.load_more_task.take();
+                        if revealed || timeline.items().n_items() != before {
+                            imp.load_more_events_if_needed();
+                        }
                     }
-                    let current_timeline = timeline.clone();
-                    timeline
-                        .paginate_backwards(clone!(
-                            #[weak]
-                            imp,
-                            #[upgrade_or]
-                            ControlFlow::Break(()),
-                            move || {
-                                if imp.timeline.obj().as_ref() == Some(&current_timeline)
-                                    && imp.needs_more_events_at_the_start()
-                                {
-                                    ControlFlow::Continue(())
-                                } else {
-                                    ControlFlow::Break(())
-                                }
-                            }
-                        ))
-                        .await;
-                }
-            ));
+                )
+            );
+            self.load_more_task.replace(Some(task));
         }
 
         /// Load more events in the history, regardless of if we need them.
@@ -875,7 +901,7 @@ mod imp {
         /// This should only be used to try to fix timeline loading errors.
         #[template_callback]
         fn load_more_events(&self) {
-            self.load_more_events_at_the_start();
+            self.load_more_events_at_the_start(false);
         }
 
         /// Scroll to the event with the given identifier.
@@ -885,7 +911,10 @@ mod imp {
             };
 
             if let Some(pos) = timeline.find_event_position(key) {
-                let pos = pos as u32;
+                let pos = self.history_model().reveal_position(pos as u32);
+                let Some(pos) = self.grouping_model().position_for_source_position(pos) else {
+                    return;
+                };
                 self.listview
                     .scroll_to(pos, gtk::ListScrollFlags::FOCUS, None);
             }

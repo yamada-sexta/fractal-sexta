@@ -207,10 +207,6 @@ mod imp {
 
         /// Set the event presented by this row.
         fn set_event(&self, event: Option<Event>) {
-            // Reinitialize the header.
-            self.obj().remove_css_class("has-avatar");
-            self.obj().remove_css_class("has-icon");
-
             self.disconnect_event_signals();
 
             if let Some(event) = event {
@@ -295,12 +291,16 @@ mod imp {
             let obj = self.obj();
 
             if event.is_call_event() {
+                obj.remove_css_class("has-avatar");
                 let child = obj.child_or_default::<CallRow>();
                 child.set_event(event);
             } else if event.is_state_event() {
+                obj.remove_css_class("has-avatar");
+                obj.remove_css_class("has-icon");
                 let child = obj.child_or_default::<StateRow>();
                 child.set_event(event);
             } else {
+                obj.remove_css_class("has-icon");
                 let child = obj.child_or_else::<MessageRow>(|| {
                     let child = MessageRow::default();
 

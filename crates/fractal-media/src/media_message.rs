@@ -235,6 +235,15 @@ pub enum VisualMediaMessage {
 }
 
 impl VisualMediaMessage {
+    /// The original media source, including encryption metadata.
+    pub fn source(&self) -> ruma::events::room::MediaSource {
+        match self {
+            Self::Image(c) => c.source.clone(),
+            Self::Video(c) => c.source.clone(),
+            Self::Sticker(c) => c.source.clone().into(),
+        }
+    }
+
     /// Construct a `VisualMediaMessage` from the given message.
     pub fn from_message(msgtype: &MessageType) -> Option<Self> {
         match msgtype {

@@ -75,6 +75,7 @@ mod imp {
         global_account_data_handler: RefCell<Option<glib::SignalHandlerId>>,
         /// The visual media message to display.
         media_message: RefCell<Option<VisualMediaMessage>>,
+        dimensions: Cell<Option<FrameDimensions>>,
         /// The cache key for the current media message.
         ///
         /// We only try to reload the media if the key changes. This is to avoid
@@ -164,34 +165,6 @@ mod imp {
                 for_size.min(max_for_size)
             };
 
-            // Use the size measured by the media child when we can, it is the natural size
-            // of the media.
-            if self.stack.visible_child_name().as_deref() == Some(MEDIA_PAGE)
-                && let Some(child) = self.media_child::<gtk::Widget>()
-            {
-                // Get the intrinsic size of the media to avoid upscaling it. It is the size
-                // returned by GtkPicture when for_size is -1.
-                let other_orientation = if orientation == gtk::Orientation::Vertical {
-                    gtk::Orientation::Horizontal
-                } else {
-                    gtk::Orientation::Vertical
-                };
-                let (_, intrinsic_for_size, ..) = child.measure(other_orientation, -1);
-
-                let (child_min, child_nat, ..) =
-                    child.measure(orientation, for_size.min(intrinsic_for_size));
-
-                if child_nat != 0 {
-                    // Limit the returned size to the max.
-                    let max = max.try_into().unwrap_or(i32::MAX);
-
-                    let min = child_min.max(overlay_min).min(max);
-                    let nat = child_nat.max(overlay_min).min(max);
-
-                    return (min, nat, -1, -1);
-                }
-            }
-
             // Limit the wanted size to the max size.
             let for_size = u32::try_from(for_size).unwrap_or(0);
             let wanted_size = if orientation == gtk::Orientation::Vertical {
@@ -207,12 +180,7 @@ mod imp {
             };
 
             // Use the size from the info or the fallback size.
-            let media_size = self
-                .media_message
-                .borrow()
-                .as_ref()
-                .and_then(VisualMediaMessage::dimensions)
-                .unwrap_or(FALLBACK_DIMENSIONS);
+            let media_size = self.dimensions.get().unwrap_or(FALLBACK_DIMENSIONS);
             let child_nat = media_size
                 .scale_to_fit(wanted_size, gtk::ContentFit::ScaleDown)
                 .dimension_for_orientation(orientation)
@@ -501,6 +469,22 @@ mod imp {
 
             self.room.set(Some(room));
 
+            let dimensions = self.media_message.borrow().as_ref().and_then(|media| {
+                let source = media.source();
+                let dimensions = media
+                    .dimensions()
+                    .filter(|d| d.width > 0 && d.height > 0)
+                    .or_else(|| session.image_cache().dimensions(&source));
+                if let Some(dimensions) = dimensions {
+                    session
+                        .image_cache()
+                        .remember_dimensions(&source, dimensions);
+                }
+                dimensions
+            });
+            self.dimensions.set(dimensions);
+            self.obj().queue_resize();
+
             self.load_placeholder();
             self.update_accessible_label();
             self.update_preview_instructions_icon();
@@ -513,7 +497,7 @@ mod imp {
                 .media_message
                 .borrow()
                 .as_ref()
-                .and_then(|media_message| media_message.dimensions().zip(media_message.blurhash()))
+                .and_then(|media_message| self.dimensions.get().zip(media_message.blurhash()))
             else {
                 // Nothing to load.
                 self.set_placeholder(None);
@@ -652,14 +636,7 @@ mod imp {
                     #[weak(rename_to = imp)]
                     self,
                     async move {
-                        match &media_message {
-                            VisualMediaMessage::Image(_) | VisualMediaMessage::Sticker(_) => {
-                                imp.build_image(&media_message, generation).await;
-                            }
-                            VisualMediaMessage::Video(_) => {
-                                imp.build_video(media_message, generation).await;
-                            }
-                        }
+                        imp.build_image(&media_message, generation).await;
 
                         imp.update_animated_paintable_state();
                     }
@@ -681,6 +658,7 @@ mod imp {
 
             let client = session.client();
             let scale_factor = self.obj().scale_factor();
+            let is_video = matches!(media_message, VisualMediaMessage::Video(_));
             let settings = ThumbnailSettings {
                 dimensions: if self.compact.get() {
                     MAX_COMPACT_DIMENSIONS.scale(scale_factor.try_into().unwrap_or(1))
@@ -688,7 +666,7 @@ mod imp {
                     FrameDimensions::thumbnail_max_dimensions(scale_factor)
                 },
                 method: Method::Scale,
-                animated: true,
+                animated: !is_video,
                 prefer_thumbnail: false,
             };
 
@@ -701,13 +679,17 @@ mod imp {
                 )
                 .await
             {
-                Ok(Some(image)) => image,
-                Ok(None) => unreachable!("Image messages should always have a fallback"),
+                Ok(image) => image,
                 Err(error) => {
-                    if self.generation.get() == generation {
-                        self.set_error(&error.to_string());
+                    if is_video {
+                        warn!("Could not retrieve video thumbnail: {error}");
+                        None
+                    } else {
+                        if self.generation.get() == generation {
+                            self.set_error(&error.to_string());
+                        }
+                        return;
                     }
-                    return;
                 }
             };
 
@@ -716,17 +698,35 @@ mod imp {
                 return;
             }
 
-            let paintable = gdk::Paintable::from(image);
+            let paintable = image.map(|image| {
+                let dimensions = media_message
+                    .dimensions()
+                    .filter(|d| d.width > 0 && d.height > 0)
+                    .unwrap_or_else(|| image.dimensions());
+                session
+                    .image_cache()
+                    .remember_dimensions(&media_message.source(), dimensions);
+                if self.dimensions.replace(Some(dimensions)) != Some(dimensions) {
+                    self.obj().queue_resize();
+                }
+                gdk::Paintable::from(image)
+            });
 
-            if let Some(child) = self.media_child::<gtk::Picture>() {
-                child.set_paintable(Some(&paintable));
-                self.obj().notify_texture();
+            if is_video {
+                self.set_video_poster(paintable.as_ref());
             } else {
-                let child = gtk::Picture::builder()
-                    .content_fit(gtk::ContentFit::ScaleDown)
-                    .build();
-                child.set_paintable(Some(&paintable));
-                self.set_media_child(Some(&child));
+                let paintable = paintable.expect("Image messages always have a fallback");
+
+                if let Some(child) = self.media_child::<gtk::Picture>() {
+                    child.set_paintable(Some(&paintable));
+                    self.obj().notify_texture();
+                } else {
+                    let child = gtk::Picture::builder()
+                        .content_fit(gtk::ContentFit::ScaleDown)
+                        .build();
+                    child.set_paintable(Some(&paintable));
+                    self.set_media_child(Some(&child));
+                }
             }
 
             if matches!(&media_message, VisualMediaMessage::Sticker(_)) {
@@ -736,6 +736,51 @@ mod imp {
             }
 
             self.set_state(LoadingState::Ready);
+        }
+
+        /// A poster does not construct a player or download the video file.
+        fn set_video_poster(&self, paintable: Option<&gdk::Paintable>) {
+            let picture = gtk::Picture::builder()
+                .content_fit(gtk::ContentFit::ScaleDown)
+                .build();
+            picture.set_paintable(paintable);
+            let poster = gtk::Overlay::new();
+            poster.set_child(Some(&picture));
+            let play = gtk::Button::from_icon_name("media-playback-start-symbolic");
+            play.set_halign(gtk::Align::Center);
+            play.set_valign(gtk::Align::Center);
+            play.add_css_class("osd");
+            play.add_css_class("circular");
+            play.set_tooltip_text(Some(&gettext("Play video")));
+            play.connect_clicked(clone!(
+                #[weak(rename_to = imp)]
+                self,
+                move |_| {
+                    imp.play_video();
+                }
+            ));
+            poster.add_overlay(&play);
+            self.set_media_child(Some(&poster));
+        }
+
+        fn play_video(&self) {
+            let Some(media_message) = self.media_message.borrow().clone() else {
+                return;
+            };
+            self.cancel_loading();
+            let generation = self.generation.get();
+            self.set_state(LoadingState::Loading);
+            let task = spawn!(
+                glib::Priority::LOW,
+                clone!(
+                    #[weak(rename_to = imp)]
+                    self,
+                    async move {
+                        imp.build_video(media_message, generation).await;
+                    }
+                )
+            );
+            self.load_task.replace(Some(task));
         }
 
         /// Build the content for the video in the given media message.
