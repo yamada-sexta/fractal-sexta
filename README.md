@@ -16,6 +16,14 @@ Fractal Sexta is a personal fork of [Fractal](https://gitlab.gnome.org/World/fra
 Matrix client written in Rust. This project exist due to the extreme Anti-AI policies and the human
 slop codebase.
 
+Why this fork?
+
+- sensible VRAM usage
+
+<img width="919" height="101" alt="image" src="https://github.com/user-attachments/assets/aa14002b-a857-45e9-a722-cc0db33a85f4" />
+
+- background notification/system tray
+
 <div align="center">
 <img
     src="screenshots/main.png"
