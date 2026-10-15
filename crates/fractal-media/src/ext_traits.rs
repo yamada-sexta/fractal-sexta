@@ -20,7 +20,7 @@ use serde::Deserialize;
 use crate::utils::string::StrMutExt;
 
 /// Helper trait for types possibly containing an `@room` mention.
-pub(crate) trait AtMentionExt {
+pub trait AtMentionExt {
     /// Whether this event might contain an `@room` mention.
     ///
     /// This means that either it does not have intentional mentions, or it has
@@ -47,7 +47,7 @@ impl AtMentionExt for Message {
 }
 
 /// Extension trait for [`TimelineEventItemId`].
-pub(crate) trait TimelineEventItemIdExt: Sized {
+pub trait TimelineEventItemIdExt: Sized {
     /// The type used to represent a [`TimelineEventItemId`] as a `GVariant`.
     fn static_variant_type() -> Cow<'static, glib::VariantTy>;
 
@@ -86,7 +86,7 @@ impl TimelineEventItemIdExt for TimelineEventItemId {
 }
 
 /// Extension trait for [`TimelineItemContent`].
-pub(crate) trait TimelineItemContentExt {
+pub trait TimelineItemContentExt {
     /// Whether this content can count as an unread message.
     ///
     /// This follows the algorithm in [MSC2654], excluding events that we do not
@@ -190,7 +190,7 @@ impl TimelineItemContentExt for TimelineItemContent {
 }
 
 /// Extension trait for [`EventTimelineItem`].
-pub(crate) trait EventTimelineItemExt {
+pub trait EventTimelineItemExt {
     /// The JSON source for the latest edit of this item, if any.
     fn latest_edit_raw(&self) -> Option<Raw<AnySyncTimelineEvent>>;
 }
@@ -230,7 +230,7 @@ struct RawBundledRelations {
 }
 
 /// Extension trait for `Option<FormattedBody>`.
-pub(crate) trait FormattedBodyExt {
+pub trait FormattedBodyExt {
     /// Clean the body in the `FormattedBody`.
     ///
     /// Replaces it with `None` if the body is empty after being cleaned.

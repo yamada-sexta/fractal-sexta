@@ -5,7 +5,7 @@ use ruma::{OwnedUserId, UserId, events::key::verification::VerificationMethod};
 mod identity_verification;
 mod verification_list;
 
-pub(crate) use self::{
+pub use self::{
     identity_verification::{
         IdentityVerification, VerificationState, VerificationSupportedMethods,
     },
@@ -15,21 +15,21 @@ use crate::{components::Camera, prelude::*};
 
 /// A unique key to identify an identity verification.
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub(crate) struct VerificationKey {
+pub struct VerificationKey {
     /// The ID of the user being verified.
-    pub(crate) user_id: OwnedUserId,
+    pub user_id: OwnedUserId,
     /// The ID of the verification.
-    pub(crate) flow_id: String,
+    pub flow_id: String,
 }
 
 impl VerificationKey {
     /// Create a new `VerificationKey` with the given user ID and flow ID.
-    pub(crate) fn new(user_id: OwnedUserId, flow_id: String) -> Self {
+    pub fn new(user_id: OwnedUserId, flow_id: String) -> Self {
         Self { user_id, flow_id }
     }
 
     /// Create a new `VerificationKey` from the given [`VerificationRequest`].
-    pub(crate) fn from_request(request: &VerificationRequest) -> Self {
+    pub fn from_request(request: &VerificationRequest) -> Self {
         Self::new(
             request.other_user_id().to_owned(),
             request.flow_id().to_owned(),

@@ -137,12 +137,12 @@ impl AttachmentDialog {
     }
 
     /// Set the image to preview.
-    pub(crate) fn set_image(&self, image: &gdk::Texture) {
+    pub fn set_image(&self, image: &gdk::Texture) {
         self.imp().set_image(image);
     }
 
     /// Set the file to preview.
-    pub(crate) fn set_file(&self, file: gio::File) {
+    pub fn set_file(&self, file: gio::File) {
         let imp = self.imp();
 
         spawn!(clone!(
@@ -155,7 +155,7 @@ impl AttachmentDialog {
     }
 
     /// Create an attachment dialog to preview and send a location.
-    pub(crate) fn set_location(&self, geo_uri: &geo_uri::GeoUri) {
+    pub fn set_location(&self, geo_uri: &geo_uri::GeoUri) {
         self.imp().set_location(geo_uri);
     }
 
@@ -163,10 +163,7 @@ impl AttachmentDialog {
     ///
     /// The response is [`gtk::ResponseType::Ok`] if the user clicked on send,
     /// otherwise it is [`gtk::ResponseType::Cancel`].
-    pub(crate) async fn response_future(
-        &self,
-        parent: &impl IsA<gtk::Widget>,
-    ) -> gtk::ResponseType {
+    pub async fn response_future(&self, parent: &impl IsA<gtk::Widget>) -> gtk::ResponseType {
         self.imp().response_future(parent.upcast_ref()).await
     }
 }

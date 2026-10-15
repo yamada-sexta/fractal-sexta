@@ -132,33 +132,33 @@ impl HistoryViewerEvent {
     }
 
     /// The Matrix event.
-    pub(crate) fn matrix_event(&self) -> &OriginalSyncRoomMessageEvent {
+    pub fn matrix_event(&self) -> &OriginalSyncRoomMessageEvent {
         self.imp().matrix_event()
     }
 
     /// The event ID of the inner event.
-    pub(crate) fn event_id(&self) -> OwnedEventId {
+    pub fn event_id(&self) -> OwnedEventId {
         self.matrix_event().event_id.clone()
     }
 
     /// The timestamp of this event, as a `GDateTime`.
-    pub(crate) fn timestamp(&self) -> glib::DateTime {
+    pub fn timestamp(&self) -> glib::DateTime {
         timestamp_to_date(self.matrix_event().origin_server_ts)
     }
 
     /// The media message content of this event.
-    pub(crate) fn media_message(&self) -> MediaMessage {
+    pub fn media_message(&self) -> MediaMessage {
         MediaMessage::from_message(&self.matrix_event().content.msgtype)
             .expect("HistoryViewerEvents are all media messages")
     }
 
     /// The visual media message of this event, if any.
-    pub(crate) fn visual_media_message(&self) -> Option<VisualMediaMessage> {
+    pub fn visual_media_message(&self) -> Option<VisualMediaMessage> {
         VisualMediaMessage::from_message(&self.matrix_event().content.msgtype)
     }
 
     /// Get the binary content of this event.
-    pub(crate) async fn get_file_content(&self) -> Result<Vec<u8>, matrix_sdk::Error> {
+    pub async fn get_file_content(&self) -> Result<Vec<u8>, matrix_sdk::Error> {
         let Some(room) = self.room() else {
             return Err(matrix_sdk::Error::UnknownError(
                 "Could not upgrade Room".into(),

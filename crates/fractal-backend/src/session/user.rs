@@ -110,7 +110,7 @@ mod imp {
         }
 
         /// Set the ID of this user.
-        pub(crate) fn set_user_id(&self, user_id: OwnedUserId) {
+        pub fn set_user_id(&self, user_id: OwnedUserId) {
             let user_id = self.user_id.get_or_init(|| user_id);
 
             let obj = self.obj();
@@ -240,7 +240,7 @@ impl User {
     /// First, we try to get the local crypto identity if we are sure that it is
     /// up-to-date. If we do not have the crypto identity locally, we request it
     /// from the homeserver.
-    pub(crate) async fn ensure_crypto_identity(&self) -> Option<UserIdentity> {
+    pub async fn ensure_crypto_identity(&self) -> Option<UserIdentity> {
         let session = self.session();
         let encryption = session.client().encryption();
         let user_id = self.user_id();
@@ -286,7 +286,7 @@ impl User {
     }
 
     /// Start a verification of the identity of this user.
-    pub(crate) async fn verify_identity(&self) -> Result<IdentityVerification, ()> {
+    pub async fn verify_identity(&self) -> Result<IdentityVerification, ()> {
         self.session()
             .verification_list()
             .create(Some(self.clone()))
@@ -297,14 +297,14 @@ impl User {
     ///
     /// A direct chat is a joined room marked as direct, with only our own user
     /// and the other user in it.
-    pub(crate) fn direct_chat(&self) -> Option<Room> {
+    pub fn direct_chat(&self) -> Option<Room> {
         self.session().room_list().direct_chat(self.user_id())
     }
 
     /// Get or create a direct chat with this user.
     ///
     /// If there is no existing direct chat, a new one is created.
-    pub(crate) async fn get_or_create_direct_chat(&self) -> Result<Room, ()> {
+    pub async fn get_or_create_direct_chat(&self) -> Result<Room, ()> {
         let user_id = self.user_id();
 
         if let Some(room) = self.direct_chat() {
@@ -317,12 +317,12 @@ impl User {
     }
 
     /// Ignore this user.
-    pub(crate) async fn ignore(&self) -> Result<(), ()> {
+    pub async fn ignore(&self) -> Result<(), ()> {
         self.session().ignored_users().add(self.user_id()).await
     }
 
     /// Stop ignoring this user.
-    pub(crate) async fn stop_ignoring(&self) -> Result<(), ()> {
+    pub async fn stop_ignoring(&self) -> Result<(), ()> {
         self.session().ignored_users().remove(self.user_id()).await
     }
 }

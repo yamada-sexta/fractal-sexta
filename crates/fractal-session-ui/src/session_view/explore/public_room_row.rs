@@ -3,7 +3,6 @@ use gettextrs::gettext;
 use gtk::{glib, glib::clone};
 
 use crate::{
-    Window,
     components::{Avatar, LoadingButton},
     gettext_f, ngettext_f,
     prelude::*,
@@ -214,9 +213,7 @@ mod imp {
             let obj = self.obj();
 
             if let Some(local_room) = room.room_list_info().local_room() {
-                if let Some(window) = obj.root().and_downcast::<Window>() {
-                    window.session_view().select_room(local_room);
-                }
+                fractal_widgets::navigation::show_room(&local_room);
             } else {
                 let Some(session) = room.session() else {
                     return;

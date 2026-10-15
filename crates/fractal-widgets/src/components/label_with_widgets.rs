@@ -322,7 +322,7 @@ glib::wrapper! {
 
 impl LabelWithWidgets {
     /// The placeholder used to mark the locations of widgets in the label.
-    pub(crate) const PLACEHOLDER: &'static str = "<widget>";
+    pub const PLACEHOLDER: &'static str = "<widget>";
 
     /// Create an empty `LabelWithWidget`.
     pub fn new() -> Self {
@@ -330,11 +330,7 @@ impl LabelWithWidgets {
     }
 
     /// Set the label and widgets to display.
-    pub(crate) fn set_label_and_widgets<P: IsA<gtk::Widget>>(
-        &self,
-        label: String,
-        widgets: Vec<P>,
-    ) {
+    pub fn set_label_and_widgets<P: IsA<gtk::Widget>>(&self, label: String, widgets: Vec<P>) {
         self.imp().set_label_and_widgets(label, widgets);
     }
 }

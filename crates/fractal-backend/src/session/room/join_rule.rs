@@ -33,7 +33,7 @@ pub enum JoinRuleValue {
 
 impl JoinRuleValue {
     /// Whether we support editing this join rule.
-    pub(crate) fn can_be_edited(self) -> bool {
+    pub fn can_be_edited(self) -> bool {
         matches!(self, Self::Invite | Self::Public)
     }
 }
@@ -370,12 +370,12 @@ impl JoinRule {
     }
 
     /// Get the current join rule from the SDK.
-    pub(crate) fn matrix_join_rule(&self) -> Option<MatrixJoinRule> {
+    pub fn matrix_join_rule(&self) -> Option<MatrixJoinRule> {
         self.imp().matrix_join_rule()
     }
 
     /// Change the join rule.
-    pub(crate) async fn set_matrix_join_rule(&self, rule: MatrixJoinRule) -> Result<(), ()> {
+    pub async fn set_matrix_join_rule(&self, rule: MatrixJoinRule) -> Result<(), ()> {
         let Some(room) = self.room() else {
             return Err(());
         };
@@ -395,7 +395,7 @@ impl JoinRule {
     }
 
     /// Connect to the signal emitted when the join rule changed.
-    pub(crate) fn connect_changed<F: Fn(&Self) + 'static>(&self, f: F) -> glib::SignalHandlerId {
+    pub fn connect_changed<F: Fn(&Self) + 'static>(&self, f: F) -> glib::SignalHandlerId {
         self.connect_closure(
             "changed",
             true,

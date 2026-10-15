@@ -13,7 +13,7 @@ template $SessionView: Adw.Bin {
       }
 
       Adw.NavigationSplitView split_view {
-        collapsed: bind template.root as <$Window>.compact;
+        collapsed: bind template.compact;
 
         sidebar: $Sidebar sidebar {
           user: bind template.session as <$Session>.user;
@@ -22,7 +22,7 @@ template $SessionView: Adw.Bin {
 
         content: $Content content {
           session: bind template.session;
-          only-view: bind template.root as <$Window>.compact;
+          only-view: bind template.compact;
         };
       }
     }

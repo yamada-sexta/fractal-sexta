@@ -44,7 +44,7 @@ use crate::{
 
 /// The possible subpages of the room details.
 #[derive(Debug, Hash, Eq, PartialEq, Clone, Copy, glib::Variant)]
-pub(super) enum SubpageName {
+pub enum SubpageName {
     /// The page to edit the name, topic and avatar of the room.
     EditDetails,
     /// The list of members of the room.
@@ -69,7 +69,7 @@ pub(super) enum SubpageName {
 
 /// The view to present when opening the room details.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum InitialView {
+pub enum InitialView {
     /// Present the default page.
     None,
     /// Present the given subpage.
@@ -289,7 +289,7 @@ glib::wrapper! {
 impl RoomDetails {
     /// Construct a `RoomDetails` for the given room with the given parent
     /// window, showing the given initial view.
-    pub(super) fn new(
+    pub fn new(
         parent_window: Option<&gtk::Window>,
         room: &Room,
         initial_view: InitialView,

@@ -1,0 +1,29 @@
+[package]
+name = "fractal-gtk-utils"
+version.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[target.'cfg(target_os = "linux")'.dependencies]
+aperture.workspace = true
+ashpd.workspace = true
+
+[dependencies]
+adw.workspace = true
+fractal-core = { path = "../fractal-core" }
+futures-util.workspace = true
+geo-uri.workspace = true
+gettext-rs.workspace = true
+gtk.workspace = true
+indexmap.workspace = true
+matrix-sdk.workspace = true
+qrcode.workspace = true
+secular.workspace = true
+sourceview.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+[lints]
+workspace = true

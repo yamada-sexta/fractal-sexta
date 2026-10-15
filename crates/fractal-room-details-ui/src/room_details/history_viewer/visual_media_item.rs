@@ -59,6 +59,7 @@ mod imp {
         event: RefCell<Option<HistoryViewerEvent>>,
         /// Which preview is presented by the picture.
         preview: Cell<MediaPreview>,
+        load_task: RefCell<Option<glib::JoinHandle<()>>>,
     }
 
     #[glib::object_subclass]
@@ -88,11 +89,20 @@ mod imp {
     #[glib::derived_properties]
     impl ObjectImpl for VisualMediaItem {
         fn dispose(&self) {
+            self.clear_preview();
             self.overlay.unparent();
         }
     }
 
     impl WidgetImpl for VisualMediaItem {
+        fn map(&self) {
+            self.parent_map();
+            self.update();
+        }
+        fn unmap(&self) {
+            self.parent_unmap();
+            self.clear_preview();
+        }
         fn measure(&self, orientation: gtk::Orientation, for_size: i32) -> (i32, i32, i32, i32) {
             // Keep the widget squared
             let (min, ..) = self.overlay.measure(orientation, for_size);
@@ -116,14 +126,20 @@ mod imp {
                 return;
             }
 
-            // Reset the preview.
-            self.preview.take();
-            self.picture.set_paintable(None::<&gdk::Paintable>);
+            self.clear_preview();
 
             self.event.replace(event);
 
             self.update();
             self.obj().notify_event();
+        }
+
+        fn clear_preview(&self) {
+            if let Some(task) = self.load_task.take() {
+                task.abort();
+            }
+            self.preview.take();
+            self.picture.set_paintable(None::<&gdk::Paintable>);
         }
 
         /// Update this item for the current state.
@@ -140,46 +156,45 @@ mod imp {
 
             self.obj().set_tooltip_text(Some(&media_message.filename()));
 
-            if let Some(blurhash) = media_message.blurhash() {
-                spawn!(
-                    glib::Priority::LOW,
-                    clone!(
-                        #[weak(rename_to = imp)]
-                        self,
-                        async move {
+            if !self.obj().is_mapped() {
+                return;
+            }
+            let task = spawn!(
+                glib::Priority::LOW,
+                clone!(
+                    #[weak(rename_to = imp)]
+                    self,
+                    async move {
+                        if let Some(blurhash) = media_message.blurhash() {
                             imp.load_placeholder(blurhash).await;
                         }
-                    )
-                );
-            }
-
-            let Some(room) = event.room() else {
-                return;
-            };
-            let Some(session) = room.session() else {
-                return;
-            };
-
-            if session
-                .global_account_data()
-                .should_room_show_media_previews(&room)
-            {
-                spawn!(
-                    glib::Priority::LOW,
-                    clone!(
-                        #[weak(rename_to = imp)]
-                        self,
-                        async move {
+                        let Some(room) = event.room() else {
+                            return;
+                        };
+                        let Some(session) = room.session() else {
+                            return;
+                        };
+                        if session
+                            .global_account_data()
+                            .should_room_show_media_previews(&room)
+                        {
                             imp.load_thumbnail(media_message, &session).await;
                         }
-                    )
-                );
-            }
+                    }
+                )
+            );
+            self.load_task.replace(Some(task));
         }
 
         /// Load the thumbnail for the given Blurhash.
         async fn load_placeholder(&self, blurhash: Blurhash) {
-            let Some(placeholder_texture) = blurhash.into_texture(PREVIEW_DIMENSIONS).await else {
+            let Some(placeholder_texture) = blurhash
+                .into_texture(FrameDimensions {
+                    width: 32,
+                    height: 32,
+                })
+                .await
+            else {
                 return;
             };
 
@@ -206,7 +221,12 @@ mod imp {
             };
 
             if let Ok(Some(image)) = media_message
-                .thumbnail(client, settings, ImageRequestPriority::Default)
+                .thumbnail(
+                    client,
+                    settings,
+                    ImageRequestPriority::Default,
+                    session.image_cache(),
+                )
                 .await
             {
                 self.picture
@@ -228,6 +248,30 @@ mod imp {
             };
 
             media_history_viewer.show_media_viewer(&obj);
+        }
+    }
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[gtk::test]
+        fn resetting_preview_releases_pixels() {
+            crate::utils::tests::load_gresources();
+            let item = super::super::VisualMediaItem::new();
+            let texture = gdk::MemoryTexture::new(
+                2,
+                2,
+                gdk::MemoryFormat::R8g8b8a8,
+                &glib::Bytes::from_owned(vec![255; 16]),
+                8,
+            );
+            let weak = texture.downgrade();
+            item.imp().picture.set_paintable(Some(&texture));
+            drop(texture);
+            assert!(weak.upgrade().is_some());
+            item.imp().clear_preview();
+            assert!(item.imp().picture.paintable().is_none());
+            assert!(weak.upgrade().is_none());
         }
     }
 }

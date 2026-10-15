@@ -7,7 +7,7 @@ mod timeline;
 mod visual_media;
 mod visual_media_item;
 
-pub(crate) use self::{
+pub use self::{
     audio::AudioHistoryViewer, file::FileHistoryViewer, timeline::HistoryViewerTimeline,
     visual_media::VisualMediaHistoryViewer,
 };

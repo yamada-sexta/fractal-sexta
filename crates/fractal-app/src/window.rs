@@ -95,6 +95,7 @@ mod imp {
         #[property(get)]
         session_selection: FixedSelection,
         /// The account switcher popover.
+        #[property(get)]
         pub(super) account_switcher: AccountSwitcherPopover,
     }
 
@@ -148,6 +149,24 @@ mod imp {
     impl ObjectImpl for Window {
         fn constructed(&self) {
             self.parent_constructed();
+            self.obj()
+                .bind_property("compact", &*self.session_view, "compact")
+                .sync_create()
+                .build();
+            self.login
+                .set_session_list(Some(Application::default().session_list().clone()));
+            self.login.connect_completed(clone!(
+                #[weak(rename_to = obj)]
+                self.obj(),
+                move |_, session| obj.add_session(session)
+            ));
+            self.obj()
+                .connect_is_active_notify(|obj| obj.update_notification_context());
+            self.session_view.connect_selected_room_notify(clone!(
+                #[weak(rename_to = obj)]
+                self.obj(),
+                move |_| obj.update_notification_context()
+            ));
 
             // Development Profile
             if PROFILE.should_use_devel_class() {
@@ -516,6 +535,25 @@ glib::wrapper! {
 }
 
 impl Window {
+    fn update_notification_context(&self) {
+        let app = Application::default();
+        let active = app
+            .active_window()
+            .and_downcast::<Window>()
+            .filter(|window| window.is_active());
+        for item in app.session_list().iter::<SessionInfo>().flatten() {
+            if let Ok(session) = item.downcast::<Session>() {
+                let room = active
+                    .as_ref()
+                    .filter(|window| {
+                        window.current_session_id().as_deref() == Some(session.session_id())
+                    })
+                    .and_then(|window| window.session_view().selected_room())
+                    .map(|room| room.room_id().to_owned());
+                session.notifications().set_active_room(room);
+            }
+        }
+    }
     pub fn new(app: &Application) -> Self {
         glib::Object::builder()
             .property("application", Some(app))
@@ -524,34 +562,29 @@ impl Window {
     }
 
     /// Add the given session to the session list and select it.
-    pub(crate) fn add_session(&self, session: Session) {
+    pub fn add_session(&self, session: Session) {
         let index = Application::default().session_list().insert(session);
         self.session_selection().set_selected(index as u32);
         self.imp().show_session();
     }
 
     /// The ID of the currently visible session, if any.
-    pub(crate) fn current_session_id(&self) -> Option<String> {
+    pub fn current_session_id(&self) -> Option<String> {
         self.imp().current_session_id()
     }
 
     /// Add the given toast to the queue.
-    pub(crate) fn add_toast(&self, toast: adw::Toast) {
+    pub fn add_toast(&self, toast: adw::Toast) {
         self.imp().add_toast(toast);
     }
 
-    /// The account switcher popover.
-    pub(crate) fn account_switcher(&self) -> &AccountSwitcherPopover {
-        &self.imp().account_switcher
-    }
-
     /// The `SessionView` of this window.
-    pub(crate) fn session_view(&self) -> &SessionView {
+    pub fn session_view(&self) -> &SessionView {
         &self.imp().session_view
     }
 
     /// Open the error page and display the given secret error message.
-    pub(crate) fn show_secret_error(&self, message: &str) {
+    pub fn show_secret_error(&self, message: &str) {
         self.imp().show_secret_error(message);
     }
 
@@ -560,7 +593,7 @@ impl Window {
     /// The session list must be ready.
     ///
     /// Returns the ID of the selected session, if any.
-    pub(crate) async fn ask_session(&self) -> Option<String> {
+    pub async fn ask_session(&self) -> Option<String> {
         let dialog = AccountChooserDialog::new(Application::default().session_list());
         dialog.choose_account(self).await
     }
@@ -568,7 +601,7 @@ impl Window {
     /// Process the given session intent.
     ///
     /// The session must be ready.
-    pub(crate) fn process_session_intent(&self, session_id: &str, intent: SessionIntent) {
+    pub fn process_session_intent(&self, session_id: &str, intent: SessionIntent) {
         if !self.imp().set_current_session_by_id(session_id) {
             error!("Cannot switch to unknown session with ID `{session_id}`");
             return;

@@ -23,7 +23,6 @@ use tracing::error;
 
 use super::{MemberRow, RoomDetails, UpgradeDialog, UpgradeInfo};
 use crate::{
-    Window,
     components::{
         Avatar, ButtonCountRow, CheckLoadingRow, CopyableRow, LoadingButton, SwitchLoadingRow,
     },
@@ -169,12 +168,9 @@ mod imp {
                     else {
                         return glib::Propagation::Proceed;
                     };
-                    let Some(parent_window) = room_details.transient_for().and_downcast::<Window>()
-                    else {
-                        return glib::Propagation::Proceed;
-                    };
-
-                    parent_window.session_view().show_matrix_uri(uri);
+                    if let Some(session) = room_details.room().session() {
+                        fractal_widgets::navigation::show_matrix_id(&session, uri);
+                    }
                     room_details.close();
 
                     glib::Propagation::Stop

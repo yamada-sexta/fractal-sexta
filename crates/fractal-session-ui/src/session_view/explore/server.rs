@@ -65,17 +65,13 @@ glib::wrapper! {
 impl ExploreServer {
     /// Construct an `ExploreServer` for the Matrix network on the default
     /// server.
-    pub(crate) fn with_default_server(name: &str) -> Self {
+    pub fn with_default_server(name: &str) -> Self {
         glib::Object::builder().property("name", name).build()
     }
 
     /// Construct an `ExploreServer` for the given third-party protocol on the
     /// default server.
-    pub(crate) fn with_third_party_protocol(
-        desc: &str,
-        protocol_id: &str,
-        instance_id: &str,
-    ) -> Self {
+    pub fn with_third_party_protocol(desc: &str, protocol_id: &str, instance_id: &str) -> Self {
         glib::Object::builder()
             .property("name", format!("{desc} ({protocol_id})"))
             .property("third-party-network", instance_id)
@@ -83,7 +79,7 @@ impl ExploreServer {
     }
 
     /// Construct an `ExploreServer` for the Matrix network on the given server.
-    pub(crate) fn with_server(server: OwnedServerName) -> Self {
+    pub fn with_server(server: OwnedServerName) -> Self {
         let obj = glib::Object::builder::<Self>()
             .property("name", server.as_str())
             .build();
@@ -94,7 +90,7 @@ impl ExploreServer {
     /// The server to query.
     ///
     /// If this is `None`, our own homeserver will be queried.
-    pub(crate) fn server(&self) -> Option<&OwnedServerName> {
+    pub fn server(&self) -> Option<&OwnedServerName> {
         self.imp().server()
     }
 }

@@ -27,23 +27,23 @@ use crate::{
 };
 
 /// The length of a session ID, in chars or bytes as the string is ASCII.
-pub(crate) const SESSION_ID_LENGTH: usize = 8;
+pub const SESSION_ID_LENGTH: usize = 8;
 /// The length of a passphrase, in chars or bytes as the string is ASCII.
-pub(crate) const PASSPHRASE_LENGTH: usize = 30;
+pub const PASSPHRASE_LENGTH: usize = 30;
 
 cfg_select! {
     target_os = "linux" => {
         /// The secret API.
-        pub(crate) type Secret = linux::LinuxSecret;
+        pub type Secret = linux::LinuxSecret;
     }
     _ => {
         /// The secret API.
-        pub(crate) type Secret = unimplemented::UnimplementedSecret;
+        pub type Secret = unimplemented::UnimplementedSecret;
     }
 }
 
 /// Trait implemented by secret backends.
-pub(crate) trait SecretExt {
+pub trait SecretExt {
     /// Retrieves all sessions stored in the secret backend.
     async fn restore_sessions() -> Result<Vec<StoredSession>, SecretError>;
 
@@ -61,7 +61,7 @@ mod unimplemented {
     use super::*;
 
     #[derive(Debug)]
-    pub(crate) struct UnimplementedSecret;
+    pub struct UnimplementedSecret;
 
     impl SecretExt for UnimplementedSecret {
         async fn restore_sessions() -> Result<Vec<StoredSession>, SecretError> {
@@ -80,7 +80,7 @@ mod unimplemented {
 
 /// Any error that can happen when interacting with the secret service.
 #[derive(Debug, Error)]
-pub(crate) enum SecretError {
+pub enum SecretError {
     /// An error occurred interacting with the secret service.
     #[error("Service error: {0}")]
     Service(String),
@@ -130,7 +130,7 @@ impl StoredSession {
     ///
     /// Returns an error if we failed to generate a unique session ID for the
     /// new session.
-    pub(crate) async fn new(client: &Client) -> Result<Self, ClientSetupError> {
+    pub async fn new(client: &Client) -> Result<Self, ClientSetupError> {
         // Generate a unique random session ID.
         let mut id = None;
         let data_path = DataType::Persistent.dir_path();
@@ -180,7 +180,7 @@ impl StoredSession {
     }
 
     /// The path where the persistent data of this session lives.
-    pub(crate) fn data_path(&self) -> PathBuf {
+    pub fn data_path(&self) -> PathBuf {
         let mut path = DataType::Persistent.dir_path();
         path.push(&self.id);
         path
@@ -201,14 +201,14 @@ impl StoredSession {
     }
 
     /// The path where the cached data of this session lives.
-    pub(crate) fn cache_path(&self) -> PathBuf {
+    pub fn cache_path(&self) -> PathBuf {
         let mut path = DataType::Cache.dir_path();
         path.push(&self.id);
         path
     }
 
     /// Delete this session from the system.
-    pub(crate) async fn delete(self) {
+    pub async fn delete(self) {
         debug!(
             "Removing stored session {} for Matrix user {}…",
             self.id, self.user_id,
@@ -239,7 +239,7 @@ impl StoredSession {
     }
 
     /// Load the tokens of this session.
-    pub(crate) async fn load_tokens(&self) -> Option<SessionTokens> {
+    pub async fn load_tokens(&self) -> Option<SessionTokens> {
         let tokens_path = self.tokens_path();
         let passphrase = self.passphrase.clone();
 
@@ -255,7 +255,7 @@ impl StoredSession {
     }
 
     /// Store the tokens of this session.
-    pub(crate) async fn store_tokens(&self, tokens: SessionTokens) {
+    pub async fn store_tokens(&self, tokens: SessionTokens) {
         let tokens_path = self.tokens_path();
         let passphrase = self.passphrase.clone();
 

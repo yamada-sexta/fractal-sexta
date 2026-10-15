@@ -431,28 +431,28 @@ impl InviteList {
     }
 
     /// Return the first invitee in the list, if any.
-    pub(crate) fn first_invitee(&self) -> Option<InviteItem> {
+    pub fn first_invitee(&self) -> Option<InviteItem> {
         self.imp().invitee_list.borrow().values().next().cloned()
     }
 
     /// Get the number of invitees.
-    pub(crate) fn n_invitees(&self) -> usize {
+    pub fn n_invitees(&self) -> usize {
         self.imp().invitee_list.borrow().len()
     }
 
     /// Get the list of user IDs of the invitees.
-    pub(crate) fn invitees_ids(&self) -> Vec<OwnedUserId> {
+    pub fn invitees_ids(&self) -> Vec<OwnedUserId> {
         self.imp().invitee_list.borrow().keys().cloned().collect()
     }
 
     /// Update the list of invitees so only the invitees with the given user IDs
     /// remain.
-    pub(crate) fn retain_invitees(&self, invitees_ids: &[&UserId]) {
+    pub fn retain_invitees(&self, invitees_ids: &[&UserId]) {
         self.imp().retain_invitees(invitees_ids);
     }
 
     /// Remove the invitee with the given user ID from the list.
-    pub(crate) fn remove_invitee(&self, user_id: &UserId) {
+    pub fn remove_invitee(&self, user_id: &UserId) {
         self.imp().remove_invitee(user_id);
     }
 

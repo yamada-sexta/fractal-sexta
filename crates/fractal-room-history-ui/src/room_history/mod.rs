@@ -42,7 +42,6 @@ use self::{
 };
 use super::{RoomDetails, room_details};
 use crate::{
-    Window,
     components::{DragOverlay, confirm_leave_room_dialog},
     ngettext_f,
     prelude::*,
@@ -268,6 +267,23 @@ mod imp {
 
     #[glib::derived_properties]
     impl ObjectImpl for RoomHistory {
+        fn signals() -> &'static [glib::subclass::Signal] {
+            static SIGNALS: std::sync::LazyLock<Vec<glib::subclass::Signal>> =
+                std::sync::LazyLock::new(|| {
+                    vec![
+                        glib::subclass::Signal::builder("show-media")
+                            .param_types([
+                                gtk::Widget::static_type(),
+                                Room::static_type(),
+                                crate::utils::matrix::VisualMediaMessage::static_type(),
+                                String::static_type(),
+                            ])
+                            .build(),
+                    ]
+                });
+            SIGNALS.as_ref()
+        }
+
         fn constructed(&self) {
             self.parent_constructed();
 
@@ -362,6 +378,22 @@ mod imp {
                     imp.bind_list_item_to_item(list_item);
                 }
             ));
+            factory.connect_unbind(|_, object| {
+                let Some(item) = object.downcast_ref::<gtk::ListItem>() else {
+                    return;
+                };
+                if let Some(child) = item.child() {
+                    if let Some(row) = child.downcast_ref::<EventRow>() {
+                        row.set_event(None::<Event>);
+                    } else if let Some(row) = child.downcast_ref::<StateGroupRow>() {
+                        row.set_group(None::<GroupingListGroup>);
+                    } else if let Some(row) = child.downcast_ref::<TypingRow>() {
+                        row.set_list(None::<&crate::session::TypingList>);
+                    } else if let Some(row) = child.downcast_ref::<DividerRow>() {
+                        row.set_virtual_item(None::<VirtualItem>);
+                    }
+                }
+            });
             self.listview.set_factory(Some(&factory));
 
             // Needed to use the natural height of GtkPictures
@@ -469,6 +501,7 @@ mod imp {
             }
 
             self.disconnect_all();
+            self.set_is_auto_scrolling(false);
             if let Some(source_id) = self.scroll_timeout.take() {
                 source_id.remove();
             }
@@ -694,6 +727,7 @@ mod imp {
 
             self.set_is_auto_scrolling(true);
 
+            let timeline = self.timeline.obj();
             let n_items = self.grouping_model().n_items();
 
             if n_items > 0 {
@@ -703,8 +737,14 @@ mod imp {
                     #[weak(rename_to = imp)]
                     self,
                     move || {
-                        imp.listview
-                            .scroll_to(n_items - 1, gtk::ListScrollFlags::FOCUS, None);
+                        if imp.timeline.obj() != timeline {
+                            return;
+                        }
+                        let n_items = imp.grouping_model().n_items();
+                        if n_items > 0 {
+                            imp.listview
+                                .scroll_to(n_items - 1, gtk::ListScrollFlags::FOCUS, None);
+                        }
                     }
                 ));
             }
@@ -805,6 +845,10 @@ mod imp {
                 #[weak(rename_to = imp)]
                 self,
                 async move {
+                    if imp.timeline.obj().as_ref() != Some(&timeline) {
+                        return;
+                    }
+                    let current_timeline = timeline.clone();
                     timeline
                         .paginate_backwards(clone!(
                             #[weak]
@@ -812,7 +856,9 @@ mod imp {
                             #[upgrade_or]
                             ControlFlow::Break(()),
                             move || {
-                                if imp.needs_more_events_at_the_start() {
+                                if imp.timeline.obj().as_ref() == Some(&current_timeline)
+                                    && imp.needs_more_events_at_the_start()
+                                {
                                     ControlFlow::Continue(())
                                 } else {
                                     ControlFlow::Break(())
@@ -846,7 +892,7 @@ mod imp {
         }
 
         /// The ancestor window of the room history.
-        fn parent_window(&self) -> Option<Window> {
+        fn parent_window(&self) -> Option<gtk::Window> {
             self.obj().root().and_downcast()
         }
 
@@ -920,14 +966,12 @@ mod imp {
                 return;
             };
 
-            spawn!(clone!(
-                #[weak(rename_to = imp)]
-                self,
-                async move {
-                    let Some(room) = imp.room() else { return };
-                    room.send_receipt(ReceiptType::Read, position).await;
-                }
-            ));
+            let Some(room) = self.room() else {
+                return;
+            };
+            spawn!(async move {
+                room.send_receipt(ReceiptType::Read, position).await;
+            });
         }
 
         /// Update the read marker.
@@ -942,14 +986,12 @@ mod imp {
                 return;
             };
 
-            spawn!(clone!(
-                #[weak(rename_to = imp)]
-                self,
-                async move {
-                    let Some(room) = imp.room() else { return };
-                    room.send_receipt(ReceiptType::FullyRead, position).await;
-                }
-            ));
+            let Some(room) = self.room() else {
+                return;
+            };
+            spawn!(async move {
+                room.send_receipt(ReceiptType::FullyRead, position).await;
+            });
         }
 
         /// The position where a receipt should point to.
@@ -1153,12 +1195,50 @@ glib::wrapper! {
 }
 
 impl RoomHistory {
+    pub fn request_media_viewer(
+        &self,
+        source: &gtk::Widget,
+        room: &Room,
+        message: crate::utils::matrix::VisualMediaMessage,
+        event_id: Option<ruma::OwnedEventId>,
+    ) {
+        self.emit_by_name::<()>(
+            "show-media",
+            &[source, room, &message, &event_id.map(String::from)],
+        );
+    }
+    pub fn connect_show_media(
+        &self,
+        callback: impl Fn(
+            gtk::Widget,
+            Room,
+            crate::utils::matrix::VisualMediaMessage,
+            Option<ruma::OwnedEventId>,
+        ) + 'static,
+    ) -> glib::SignalHandlerId {
+        self.connect_closure(
+            "show-media",
+            false,
+            glib::closure_local!(move |_: Self,
+                                       source: gtk::Widget,
+                                       room: Room,
+                                       message: crate::utils::matrix::VisualMediaMessage,
+                                       event_id: Option<String>| {
+                callback(
+                    source,
+                    room,
+                    message,
+                    event_id.and_then(|id| ruma::OwnedEventId::try_from(id).ok()),
+                )
+            }),
+        )
+    }
     pub fn new() -> Self {
         glib::Object::new()
     }
 
     /// The header bar of the room history.
-    pub(crate) fn header_bar(&self) -> &adw::HeaderBar {
+    pub fn header_bar(&self) -> &adw::HeaderBar {
         &self.imp().header_bar
     }
 
@@ -1169,7 +1249,7 @@ impl RoomHistory {
 
     /// Enable or disable the mode allowing the room history to stick to the
     /// bottom based on scrollbar position.
-    pub(crate) fn enable_sticky_mode(&self, enable: bool) {
+    pub fn enable_sticky_mode(&self, enable: bool) {
         let imp = self.imp();
         if enable {
             imp.set_sticky(imp.is_at_bottom());
@@ -1179,7 +1259,7 @@ impl RoomHistory {
     }
 
     /// Handle a paste action.
-    pub(crate) fn handle_paste_action(&self) {
+    pub fn handle_paste_action(&self) {
         self.imp().message_toolbar.handle_paste_action();
     }
 

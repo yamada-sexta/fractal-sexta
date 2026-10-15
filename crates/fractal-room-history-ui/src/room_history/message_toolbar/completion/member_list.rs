@@ -12,13 +12,14 @@ use crate::{
 };
 
 mod imp {
-    use std::cell::RefCell;
+    use std::cell::{Cell, RefCell};
 
     use super::*;
 
     #[derive(Debug, Default, glib::Properties)]
     #[properties(wrapper_type = super::CompletionMemberList)]
     pub struct CompletionMemberList {
+        active: Cell<bool>,
         /// The current room.
         #[property(get, set = Self::set_room, explicit_notify, nullable)]
         room: BoundObjectWeakRef<Room>,
@@ -136,6 +137,22 @@ mod imp {
     }
 
     impl CompletionMemberList {
+        pub(super) fn set_active(&self, active: bool) {
+            if self.active.replace(active) != active {
+                self.update_members();
+            }
+        }
+        fn update_members(&self) {
+            let joined = self
+                .room
+                .obj()
+                .filter(|_| self.active.get())
+                .map(|room| room.get_or_create_members())
+                .map(|members| members.membership_list(MembershipListKind::Join));
+            self.joined_members.set(joined.as_ref());
+            self.filtered_members.set_model(joined.as_ref());
+            self.obj().notify_joined_members();
+        }
         /// Set the current room.
         fn set_room(&self, room: Option<&Room>) {
             let prev_room = self.room.obj();
@@ -173,10 +190,7 @@ mod imp {
                 self.room.set(room, vec![is_direct_handler]);
             }
 
-            let joined_members = room
-                .map(Room::get_or_create_members)
-                .map(|members| members.membership_list(MembershipListKind::Join));
-            self.filtered_members.set_model(joined_members.as_ref());
+            self.update_members();
 
             self.update_at_room_model();
             self.obj().notify_joined_members();
@@ -208,12 +222,15 @@ glib::wrapper! {
 }
 
 impl CompletionMemberList {
+    pub fn set_active(&self, active: bool) {
+        self.imp().set_active(active);
+    }
     pub fn new() -> Self {
         glib::Object::new()
     }
 
     /// Set the search term.
-    pub(crate) fn set_search_term(&self, term: Option<&str>) {
+    pub fn set_search_term(&self, term: Option<&str>) {
         self.imp().set_search_term(term);
     }
 }

@@ -37,7 +37,7 @@ pub enum AvatarUriSource {
 
 /// The size of the paintable to load.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum AvatarPaintableSize {
+pub enum AvatarPaintableSize {
     /// A small paintable, of size [`AvatarImage::SMALL_PAINTABLE_SIZE`].
     Small,
     /// A big paintable, of size [`AvatarImage::BIG_PAINTABLE_SIZE`].
@@ -97,8 +97,8 @@ mod imp {
         scale_factor: Cell<u32>,
         /// The counted reference for the small paintable.
         ///
-        /// The small paintable is cached indefinitely after the first reference
-        /// is taken.
+        /// The small paintable is kept while displayed; bounded warm reuse
+        /// lives in the session image cache.
         small_paintable_ref: OnceCell<CountedRef>,
         /// The cached paintable of the avatar at small size, if any.
         #[property(get)]
@@ -259,7 +259,13 @@ mod imp {
         pub(super) fn small_paintable_ref(&self) -> &CountedRef {
             self.small_paintable_ref.get_or_init(|| {
                 CountedRef::new(
-                    || {},
+                    clone!(
+                        #[weak(rename_to = imp)]
+                        self,
+                        move || {
+                            imp.small_paintable.take();
+                        }
+                    ),
                     clone!(
                         #[weak(rename_to = imp)]
                         self,
@@ -289,9 +295,12 @@ mod imp {
             } else {
                 ImageRequestPriority::Low
             };
+            let identity = (self.uri(), self.scale_factor.get());
             let paintable = self.load(AvatarPaintableSize::Small, priority).await;
 
-            if self.small_paintable_ref().count() == 0 {
+            if identity != (self.uri(), self.scale_factor.get())
+                || self.small_paintable_ref().count() == 0
+            {
                 // The last reference was dropped while we were loading the paintable, do not
                 // cache it.
                 return;
@@ -342,11 +351,14 @@ mod imp {
 
         /// Load the big paintable.
         async fn load_big_paintable(&self) {
+            let identity = (self.uri(), self.scale_factor.get());
             let paintable = self
                 .load(AvatarPaintableSize::Big, ImageRequestPriority::High)
                 .await;
 
-            if self.big_paintable_ref().count() == 0 {
+            if identity != (self.uri(), self.scale_factor.get())
+                || self.big_paintable_ref().count() == 0
+            {
                 // The last reference was dropped while we were loading the paintable, do not
                 // cache it.
                 return;
@@ -413,8 +425,11 @@ mod imp {
                 prefer_thumbnail: true,
             };
 
-            downloader
-                .download(client, settings, priority)
+            self.session
+                .get()
+                .expect("session initialized")
+                .image_cache()
+                .download(downloader, client, settings, priority)
                 .await
                 .map(|image| Some(image.into()))
         }
@@ -432,10 +447,9 @@ impl AvatarImage {
     /// This is usually the size presented in the timeline or the sidebar. This
     /// is also the size of the avatar in GNOME Shell notifications.
     ///
-    /// This matches an avatar of size `48` or smaller. This size is cached
-    /// indefinitely after the first [`AvatarImage::small_paintable_ref()`] is
-    /// taken.
-    pub(crate) const SMALL_PAINTABLE_SIZE: u32 = 48;
+    /// This matches an avatar of size `48` or smaller. This size is kept while
+    /// displayed and otherwise retained only by the bounded session cache.
+    pub const SMALL_PAINTABLE_SIZE: u32 = 48;
 
     /// The big size of the paintable.
     ///
@@ -443,11 +457,11 @@ impl AvatarImage {
     ///
     /// This matches an avatar of size `150` or smaller. This is only cached
     /// when at least one [`AvatarImage::big_paintable_ref()`] is held.
-    pub(crate) const BIG_PAINTABLE_SIZE: u32 = 150;
+    pub const BIG_PAINTABLE_SIZE: u32 = 150;
 
     /// Construct a new `AvatarImage` with the given session, Matrix URI and
     /// avatar info.
-    pub(crate) fn new(
+    pub fn new(
         session: &Session,
         uri_source: AvatarUriSource,
         uri: Option<OwnedMxcUri>,
@@ -463,31 +477,31 @@ impl AvatarImage {
     }
 
     /// Set the Matrix URI and information of the avatar.
-    pub(crate) fn set_uri_and_info(&self, uri: Option<OwnedMxcUri>, info: Option<ImageInfo>) {
+    pub fn set_uri_and_info(&self, uri: Option<OwnedMxcUri>, info: Option<ImageInfo>) {
         let imp = self.imp();
         imp.set_info(info);
         imp.set_uri(uri);
     }
 
     /// The Matrix URI of the avatar.
-    pub(crate) fn uri(&self) -> Option<OwnedMxcUri> {
+    pub fn uri(&self) -> Option<OwnedMxcUri> {
         self.imp().uri()
     }
 
     /// Get a small paintable ref.
-    pub(crate) fn small_paintable_ref(&self) -> CountedRef {
+    pub fn small_paintable_ref(&self) -> CountedRef {
         self.imp().small_paintable_ref().clone()
     }
 
     /// Get a big paintable ref.
-    pub(crate) fn big_paintable_ref(&self) -> CountedRef {
+    pub fn big_paintable_ref(&self) -> CountedRef {
         self.imp().big_paintable_ref().clone()
     }
 
     /// Get the small paintable.
     ///
     /// We first try to get it from the cache, and load it if it is not cached.
-    pub(crate) async fn load_small_paintable(&self) -> Result<Option<gdk::Paintable>, ImageError> {
+    pub async fn load_small_paintable(&self) -> Result<Option<gdk::Paintable>, ImageError> {
         if let Some(paintable) = self.small_paintable() {
             return Ok(Some(paintable));
         }
@@ -511,7 +525,7 @@ impl AvatarImage {
 
     /// The last error encountered when loading the paintable of the avatar, if
     /// any.
-    pub(crate) fn error(&self) -> Option<ImageError> {
+    pub fn error(&self) -> Option<ImageError> {
         self.imp().error.get()
     }
 

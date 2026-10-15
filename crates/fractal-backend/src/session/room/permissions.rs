@@ -500,22 +500,22 @@ impl Permissions {
     }
 
     /// The source of the power levels information.
-    pub(crate) fn power_levels(&self) -> RoomPowerLevels {
+    pub fn power_levels(&self) -> RoomPowerLevels {
         self.imp().power_levels.borrow().clone()
     }
 
     /// The power level of our own member.
-    pub(crate) fn own_power_level(&self) -> UserPowerLevel {
+    pub fn own_power_level(&self) -> UserPowerLevel {
         self.imp().own_power_level.get()
     }
 
     /// The power level for the user with the given ID.
-    pub(crate) fn user_power_level(&self, user_id: &UserId) -> UserPowerLevel {
+    pub fn user_power_level(&self, user_id: &UserId) -> UserPowerLevel {
         self.imp().power_levels.borrow().for_user(user_id)
     }
 
     /// The current [`MemberRole`] for the given power level.
-    pub(crate) fn role(&self, power_level: UserPowerLevel) -> MemberRole {
+    pub fn role(&self, power_level: UserPowerLevel) -> MemberRole {
         let UserPowerLevel::Int(power_level) = power_level else {
             return MemberRole::Creator;
         };
@@ -539,13 +539,13 @@ impl Permissions {
     }
 
     /// Whether our own member is allowed to do the given action.
-    pub(crate) fn is_allowed_to(&self, room_action: PowerLevelAction) -> bool {
+    pub fn is_allowed_to(&self, room_action: PowerLevelAction) -> bool {
         self.imp().is_allowed_to(room_action)
     }
 
     /// Whether our own user can do the given action on the user with the given
     /// ID.
-    pub(crate) fn can_do_to_user(&self, user_id: &UserId, action: PowerLevelUserAction) -> bool {
+    pub fn can_do_to_user(&self, user_id: &UserId, action: PowerLevelUserAction) -> bool {
         let imp = self.imp();
 
         if !self.is_joined() {
@@ -571,13 +571,13 @@ impl Permissions {
     }
 
     /// Whether our user can set the given power level for another user.
-    pub(crate) fn can_set_user_power_level_to(&self, power_level: i64) -> bool {
+    pub fn can_set_user_power_level_to(&self, power_level: i64) -> bool {
         self.is_allowed_to(PowerLevelAction::SendState(StateEventType::RoomPowerLevels))
             && self.own_power_level() >= Int::new_saturating(power_level)
     }
 
     /// Set the power level of the room member with the given user ID.
-    pub(crate) async fn set_user_power_level(
+    pub async fn set_user_power_level(
         &self,
         user_id: OwnedUserId,
         power_level: Int,
@@ -603,7 +603,7 @@ impl Permissions {
     }
 
     /// Set the power levels.
-    pub(crate) async fn set_power_levels(&self, power_levels: RoomPowerLevels) -> Result<(), ()> {
+    pub async fn set_power_levels(&self, power_levels: RoomPowerLevels) -> Result<(), ()> {
         let Some(room) = self.room() else {
             return Err(());
         };
@@ -625,11 +625,7 @@ impl Permissions {
     }
 
     /// Whether the user with the given ID is allowed to do the given action.
-    pub(crate) fn user_is_allowed_to(
-        &self,
-        user_id: &UserId,
-        room_action: PowerLevelAction,
-    ) -> bool {
+    pub fn user_is_allowed_to(&self, user_id: &UserId, room_action: PowerLevelAction) -> bool {
         self.imp()
             .power_levels
             .borrow()
@@ -637,7 +633,7 @@ impl Permissions {
     }
 
     /// Connect to the signal emitted when the permissions changed.
-    pub(crate) fn connect_changed<F: Fn(&Self) + 'static>(&self, f: F) -> glib::SignalHandlerId {
+    pub fn connect_changed<F: Fn(&Self) + 'static>(&self, f: F) -> glib::SignalHandlerId {
         self.connect_closure(
             "changed",
             true,
@@ -649,7 +645,7 @@ impl Permissions {
 
     /// Connect to the signal emitted when the power level of our own member
     /// changed.
-    pub(crate) fn connect_own_power_level_changed<F: Fn(&Self) + 'static>(
+    pub fn connect_own_power_level_changed<F: Fn(&Self) + 'static>(
         &self,
         f: F,
     ) -> glib::SignalHandlerId {

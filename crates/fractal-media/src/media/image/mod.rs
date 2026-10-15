@@ -22,9 +22,12 @@ use ruma::{
 };
 use tracing::{error, warn};
 
+mod cache;
 mod queue;
-
-pub(crate) use queue::{IMAGE_QUEUE, ImageRequestPriority};
+mod resize;
+pub use cache::ImageCache;
+pub use queue::{IMAGE_QUEUE, ImageRequestPriority};
+pub use resize::DisplayFrame;
 
 use super::{FrameDimensions, MediaFileError};
 use crate::{
@@ -34,7 +37,7 @@ use crate::{
 };
 
 /// The maximum dimensions of a thumbnail in the timeline.
-pub(crate) const THUMBNAIL_MAX_DIMENSIONS: FrameDimensions = FrameDimensions {
+pub const THUMBNAIL_MAX_DIMENSIONS: FrameDimensions = FrameDimensions {
     width: 600,
     height: 400,
 };
@@ -135,10 +138,13 @@ impl ImageDecoderSource {
             decoder.next_frame_future().await?
         };
 
+        let first_frame = DisplayFrame::prepare(first_frame, request_dimensions).await?;
+        let animated = first_frame.delay.is_some();
         Ok(Image {
-            file,
-            decoder,
+            file: if animated { file } else { None },
+            decoder: if animated { Some(decoder) } else { None },
             first_frame,
+            request_dimensions,
         })
     }
 }
@@ -157,16 +163,17 @@ impl From<gio::File> for ImageDecoderSource {
 
 /// An image that was just loaded.
 #[derive(Clone)]
-pub(crate) struct Image {
+pub struct Image {
     /// The file containing the image, if any.
     ///
     /// We need to keep a strong reference to the temporary file or it will be
     /// destroyed.
     file: Option<File>,
     /// The image decoder.
-    decoder: glycin::Image,
+    decoder: Option<glycin::Image>,
     /// The first frame of the image.
-    first_frame: glycin::Frame,
+    first_frame: DisplayFrame,
+    request_dimensions: Option<FrameDimensions>,
 }
 
 impl fmt::Debug for Image {
@@ -177,16 +184,22 @@ impl fmt::Debug for Image {
 
 impl From<Image> for gdk::Paintable {
     fn from(value: Image) -> Self {
-        if value.first_frame.has_delay() {
-            AnimatedImagePaintable::new(value.decoder, value.first_frame, value.file).upcast()
+        if let Some(decoder) = value.decoder {
+            AnimatedImagePaintable::new(
+                decoder,
+                value.first_frame,
+                value.file,
+                value.request_dimensions,
+            )
+            .upcast()
         } else {
-            value.first_frame.texture().upcast()
+            value.first_frame.texture.upcast()
         }
     }
 }
 
 /// An API to load image information.
-pub(crate) enum ImageInfoLoader {
+pub enum ImageInfoLoader {
     /// An image file.
     File(gio::File),
     /// A texture in memory.
@@ -217,7 +230,7 @@ impl ImageInfoLoader {
     }
 
     /// Load the information for this image.
-    pub(crate) async fn load_info(self) -> BaseImageInfo {
+    pub async fn load_info(self) -> BaseImageInfo {
         self.into_first_frame()
             .await
             .map(|f| f.info())
@@ -226,7 +239,7 @@ impl ImageInfoLoader {
 
     /// Load the information for this image and try to generate a thumbnail
     /// given the filesize of the original image.
-    pub(crate) async fn load_info_and_thumbnail(
+    pub async fn load_info_and_thumbnail(
         self,
         filesize: Option<u32>,
         widget: &impl IsA<gtk::Widget>,
@@ -248,7 +261,7 @@ impl ImageInfoLoader {
                 .is_some_and(|d| d.needs_thumbnail(max_thumbnail_dimensions))
         {
             // It is not worth it to generate a thumbnail.
-            info.blurhash = frame.generate_blurhash().map(|blurhash| blurhash.0);
+            info.blurhash = frame.generate_blurhash().await.map(|blurhash| blurhash.0);
 
             return (info, None);
         }
@@ -265,6 +278,7 @@ impl ImageInfoLoader {
 
         let (thumbnail, blurhash) = frame
             .generate_thumbnail_and_blurhash(scale_factor, &renderer)
+            .await
             .unzip();
         info.blurhash = blurhash.map(|blurhash| blurhash.0);
 
@@ -325,13 +339,17 @@ impl Frame {
     }
 
     /// Generate a Blurhash of this frame.
-    fn generate_blurhash(self) -> Option<Blurhash> {
+    async fn generate_blurhash(self) -> Option<Blurhash> {
         let texture = match self {
             Self::Glycin(frame) => frame.texture(),
             Self::Texture(texture) => texture,
         };
 
-        let blurhash = Blurhash::with_texture(&texture);
+        let blurhash = RUNTIME
+            .spawn_blocking(move || Blurhash::with_texture(&texture))
+            .await
+            .ok()
+            .flatten();
 
         if blurhash.is_none() {
             warn!("Could not generate Blurhash from GdkTexture");
@@ -344,7 +362,7 @@ impl Frame {
     ///
     /// We use the thumbnail to compute the blurhash, which should be less
     /// expensive than using the original frame.
-    fn generate_thumbnail_and_blurhash(
+    async fn generate_thumbnail_and_blurhash(
         self,
         scale_factor: i32,
         renderer: &gsk::Renderer,
@@ -354,8 +372,9 @@ impl Frame {
             Self::Texture(texture) => texture,
         };
 
-        let thumbnail_blurhash =
-            TextureThumbnailer(texture).generate_thumbnail_and_blurhash(scale_factor, renderer);
+        let thumbnail_blurhash = TextureThumbnailer(texture)
+            .generate_thumbnail_and_blurhash(scale_factor, renderer)
+            .await;
 
         if thumbnail_blurhash.is_none() {
             warn!("Could not generate thumbnail and Blurhash from GdkTexture");
@@ -368,7 +387,7 @@ impl Frame {
 /// Extensions to `FrameDimensions` for computing thumbnail dimensions.
 impl FrameDimensions {
     /// Get the maximum dimensions for a thumbnail with the given scale factor.
-    pub(crate) fn thumbnail_max_dimensions(scale_factor: i32) -> Self {
+    pub fn thumbnail_max_dimensions(scale_factor: i32) -> Self {
         let scale_factor = scale_factor.try_into().unwrap_or(1);
         THUMBNAIL_MAX_DIMENSIONS.scale(scale_factor)
     }
@@ -404,10 +423,10 @@ impl FrameDimensions {
     /// Convert these dimensions to a request for the image loader with the
     /// requested dimensions.
     fn to_image_loader_request(self, requested: Self) -> glycin::FrameRequest {
-        let scaled = self.scale_to_fit(requested, gtk::ContentFit::Cover);
+        let scaled = self.scale_to_fit(requested, gtk::ContentFit::ScaleDown);
 
         let request = glycin::FrameRequest::new();
-        request.set_scale(scaled.width, scaled.height);
+        request.set_scale(scaled.width.max(1), scaled.height.max(1));
         request
     }
 }
@@ -502,7 +521,7 @@ impl TextureThumbnailer {
     ///
     /// We use the thumbnail to compute the blurhash, which should be less
     /// expensive than using the original texture.
-    pub(super) fn generate_thumbnail_and_blurhash(
+    pub(super) async fn generate_thumbnail_and_blurhash(
         self,
         scale_factor: i32,
         renderer: &gsk::Renderer,
@@ -511,31 +530,38 @@ impl TextureThumbnailer {
         let thumbnail = self.downscale_texture_if_needed(max_thumbnail_dimensions, renderer)?;
         let dimensions = FrameDimensions::with_texture(&thumbnail)?;
 
-        let blurhash = Blurhash::with_texture(&thumbnail)?;
+        RUNTIME
+            .spawn_blocking(move || {
+                let blurhash = Blurhash::with_texture(&thumbnail)?;
 
-        let (downloader_format, webp_layout) =
-            Self::texture_format_to_thumbnail_format(thumbnail.format())?;
+                let (downloader_format, webp_layout) =
+                    Self::texture_format_to_thumbnail_format(thumbnail.format())?;
 
-        let mut downloader = gdk::TextureDownloader::new(&thumbnail);
-        downloader.set_format(downloader_format);
-        let (data, _) = downloader.download_bytes();
+                let mut downloader = gdk::TextureDownloader::new(&thumbnail);
+                downloader.set_format(downloader_format);
+                let (data, _) = downloader.download_bytes();
 
-        let encoder = webp::Encoder::new(&data, webp_layout, dimensions.width, dimensions.height);
-        let data = encoder.encode(WEBP_DEFAULT_QUALITY).to_vec();
+                let encoder =
+                    webp::Encoder::new(&data, webp_layout, dimensions.width, dimensions.height);
+                let data = encoder.encode(WEBP_DEFAULT_QUALITY).to_vec();
 
-        let size = data.len().try_into().ok()?;
-        let content_type =
-            mime::Mime::from_str(WEBP_CONTENT_TYPE).expect("content type should be valid");
+                let size = data.len().try_into().ok()?;
+                let content_type =
+                    mime::Mime::from_str(WEBP_CONTENT_TYPE).expect("content type should be valid");
 
-        let thumbnail = Thumbnail {
-            data,
-            content_type,
-            width: dimensions.width.into(),
-            height: dimensions.height.into(),
-            size,
-        };
+                let thumbnail = Thumbnail {
+                    data,
+                    content_type,
+                    width: dimensions.width.into(),
+                    height: dimensions.height.into(),
+                    size,
+                };
 
-        Some((thumbnail, blurhash))
+                Some((thumbnail, blurhash))
+            })
+            .await
+            .ok()
+            .flatten()
     }
 }
 
@@ -543,7 +569,7 @@ impl TextureThumbnailer {
 ///
 /// [Blurhash]: https://blurha.sh/
 #[derive(Debug, Clone)]
-pub(crate) struct Blurhash(pub(crate) String);
+pub struct Blurhash(pub String);
 
 impl Blurhash {
     /// Try to compute the Blurhash for the given `GdkTexture`.
@@ -577,7 +603,7 @@ impl Blurhash {
 
     /// Try to convert this Blurhash to a `GdkTexture` with the given
     /// dimensions.
-    pub(crate) async fn into_texture(self, dimensions: FrameDimensions) -> Option<gdk::Texture> {
+    pub async fn into_texture(self, dimensions: FrameDimensions) -> Option<gdk::Texture> {
         // Because it can take some time, spawn on a separate thread.
         RUNTIME
             .spawn_blocking(move || {
@@ -605,15 +631,15 @@ impl Blurhash {
 
 /// An API to download a thumbnail for a media.
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct ThumbnailDownloader<'a> {
+pub struct ThumbnailDownloader<'a> {
     /// The main source of the image.
     ///
     /// This should be the source with the best quality.
-    pub(crate) main: ImageSource<'a>,
+    pub main: ImageSource<'a>,
     /// An alternative source for the image.
     ///
     /// This should be a source with a lower quality.
-    pub(crate) alt: Option<ImageSource<'a>>,
+    pub alt: Option<ImageSource<'a>>,
 }
 
 impl ThumbnailDownloader<'_> {
@@ -621,7 +647,7 @@ impl ThumbnailDownloader<'_> {
     ///
     /// This might not return a thumbnail at the requested dimensions, depending
     /// on the sources and the homeserver.
-    pub(crate) async fn download(
+    pub async fn download(
         self,
         client: Client,
         settings: ThumbnailSettings,
@@ -682,11 +708,11 @@ impl ThumbnailDownloader<'_> {
 
 /// The source of an image.
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct ImageSource<'a> {
+pub struct ImageSource<'a> {
     /// The source of the image.
-    pub(crate) source: MediaSource<'a>,
+    pub source: MediaSource<'a>,
     /// Information about the image.
-    pub(crate) info: Option<ImageSourceInfo<'a>>,
+    pub info: Option<ImageSourceInfo<'a>>,
 }
 
 impl ImageSource<'_> {
@@ -772,7 +798,7 @@ fn filesize_is_too_big(filesize: Option<u32>) -> bool {
 
 /// The source of a media file.
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum MediaSource<'a> {
+pub enum MediaSource<'a> {
     /// A common media source.
     Common(&'a CommonMediaSource),
     /// The media source of a sticker.
@@ -821,7 +847,7 @@ impl<'a> From<&'a OwnedMxcUri> for MediaSource<'a> {
 
 /// Information about the source of an image.
 #[derive(Debug, Clone, Copy, Default)]
-pub(crate) struct ImageSourceInfo<'a> {
+pub struct ImageSourceInfo<'a> {
     /// The dimensions of the image.
     dimensions: Option<FrameDimensions>,
     /// The MIME type of the image.
@@ -867,13 +893,13 @@ impl<'a> From<&'a AvatarImageInfo> for ImageSourceInfo<'a> {
 
 /// The settings for downloading a thumbnail.
 #[derive(Debug, Clone)]
-pub(crate) struct ThumbnailSettings {
+pub struct ThumbnailSettings {
     /// The requested dimensions of the thumbnail.
-    pub(crate) dimensions: FrameDimensions,
+    pub dimensions: FrameDimensions,
     /// The method to use to resize the thumbnail.
-    pub(crate) method: Method,
+    pub method: Method,
     /// Whether to request an animated thumbnail.
-    pub(crate) animated: bool,
+    pub animated: bool,
     /// Whether we should prefer to get a thumbnail if dimensions are unknown.
     ///
     /// This is particularly useful for avatars where we will prefer to save
@@ -881,7 +907,7 @@ pub(crate) struct ThumbnailSettings {
     /// appear several times on the screen. For media messages, we will on the
     /// contrary prefer to download the original content to reduce the space
     /// taken in the media cache.
-    pub(crate) prefer_thumbnail: bool,
+    pub prefer_thumbnail: bool,
 }
 
 impl From<ThumbnailSettings> for MediaThumbnailSettings {
@@ -904,7 +930,7 @@ impl From<ThumbnailSettings> for MediaThumbnailSettings {
 
 /// An error encountered when loading an image.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum ImageError {
+pub enum ImageError {
     /// Could not download the image.
     Download,
     /// Could not save the image to a temporary file.
@@ -963,7 +989,7 @@ impl From<glib::Error> for ImageError {
 }
 
 /// Extensions to [`glycin::Frame`].
-pub(crate) trait GlycinFrameExt {
+pub trait GlycinFrameExt {
     /// Whether the frame has a delay, which means that the image is animated.
     fn has_delay(&self) -> bool;
 
@@ -991,5 +1017,36 @@ impl GlycinFrameExt for glycin::Frame {
 
     fn texture(&self) -> gdk::Texture {
         glycin_gtk4::frame_get_texture(self)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[gtk::test]
+    fn static_decodes_are_bounded_and_release_decoder() {
+        let source = gdk::MemoryTexture::new(
+            2048,
+            1024,
+            gdk::MemoryFormat::R8g8b8a8,
+            &glib::Bytes::from_owned(vec![255; 2048 * 1024 * 4]),
+            2048 * 4,
+        );
+        let data = source.save_to_png_bytes().to_vec();
+        let image = glib::MainContext::default().block_on(async {
+            ImageDecoderSource::Data(data)
+                .decode_image(Some(FrameDimensions {
+                    width: 48,
+                    height: 48,
+                }))
+                .await
+                .expect("PNG should decode")
+        });
+        assert_eq!(image.first_frame.texture.width(), 48);
+        assert_eq!(image.first_frame.texture.height(), 24);
+        assert!(image.first_frame.bytes <= 48 * 48 * 16);
+        assert!(image.decoder.is_none());
+        assert!(image.file.is_none());
     }
 }

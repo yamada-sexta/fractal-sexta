@@ -1,4 +1,5 @@
 use adw::{prelude::*, subclass::prelude::*};
+use gettextrs::gettext;
 use gtk::{glib, glib::clone};
 
 mod user;
@@ -6,9 +7,7 @@ mod user_list;
 
 use self::{user::DirectChatUser, user_list::DirectChatUserList};
 use crate::{
-    Window,
     components::{PillSource, PillSourceRow},
-    gettext,
     session::{Session, User},
 };
 
@@ -188,15 +187,7 @@ mod imp {
             if let Ok(room) = user.get_or_create_direct_chat().await {
                 let obj = self.obj();
 
-                let Some(window) = obj
-                    .parent()
-                    .and_then(|widget| widget.root())
-                    .and_downcast::<Window>()
-                else {
-                    return;
-                };
-
-                window.session_view().select_room(room);
+                fractal_widgets::navigation::show_room(&room);
                 obj.close();
             } else {
                 self.show_error(&gettext("Could not create a new Direct Chat"));

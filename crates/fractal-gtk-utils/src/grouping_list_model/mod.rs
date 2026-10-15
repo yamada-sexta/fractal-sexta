@@ -6,7 +6,7 @@ mod group;
 #[cfg(test)]
 mod tests;
 
-pub(crate) use self::group::GroupingListGroup;
+pub use self::group::GroupingListGroup;
 use crate::utils::BoundObject;
 
 /// A function to determine if an item should be grouped with another contiguous
@@ -14,7 +14,7 @@ use crate::utils::BoundObject;
 ///
 /// This function MUST always return `true` when used with any two items in the
 /// same group.
-pub(crate) type GroupFn = dyn Fn(&glib::Object, &glib::Object) -> bool;
+pub type GroupFn = dyn Fn(&glib::Object, &glib::Object) -> bool;
 
 mod imp {
     use std::{

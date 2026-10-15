@@ -26,7 +26,7 @@ use crate::{
 };
 
 /// The default image request queue.
-pub(crate) static IMAGE_QUEUE: LazyLock<ImageRequestQueue> = LazyLock::new(ImageRequestQueue::new);
+pub static IMAGE_QUEUE: LazyLock<ImageRequestQueue> = LazyLock::new(ImageRequestQueue::new);
 
 /// The default limit of the [`ImageRequestQueue`], aka the maximum number of
 /// concurrent image requests.
@@ -50,7 +50,7 @@ const STALLED_REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
 /// - Watch requests that take too long to:
 ///   - Log them,
 ///   - Ignore them in the count of ongoing requests.
-pub(crate) struct ImageRequestQueue {
+pub struct ImageRequestQueue {
     inner: Arc<Mutex<ImageRequestQueueInner>>,
 }
 
@@ -96,7 +96,7 @@ impl ImageRequestQueue {
     ///
     /// If another request for the same image already exists, this will reuse
     /// the same request.
-    pub(crate) fn add_download_request(
+    pub fn add_download_request(
         &self,
         client: Client,
         settings: MediaRequestParameters,
@@ -111,7 +111,7 @@ impl ImageRequestQueue {
     ///
     /// If another request for the same file already exists, this will reuse the
     /// same request.
-    pub(crate) fn add_file_request(
+    pub fn add_file_request(
         &self,
         file: File,
         dimensions: Option<FrameDimensions>,
@@ -132,8 +132,19 @@ impl ImageRequestQueue {
     }
 
     /// Remove the request with the given ID.
-    fn remove_request(&self, request_id: &ImageRequestId) {
-        self.inner().remove_request(request_id);
+    fn remove_request(
+        &self,
+        request_id: &ImageRequestId,
+        sender: &broadcast::Sender<Result<Image, ImageError>>,
+    ) {
+        let mut inner = self.inner();
+        if inner
+            .requests
+            .get(request_id)
+            .is_some_and(|request| request.result_sender.same_channel(sender))
+        {
+            inner.remove_request(request_id);
+        }
     }
 }
 
@@ -172,12 +183,12 @@ impl ImageRequestQueueInner {
         inner: ImageLoaderRequest,
         priority: ImageRequestPriority,
     ) -> ImageRequestHandle {
-        let request_id = inner.source.request_id();
+        let request_id = inner.request_id();
 
         // If the request already exists, use the existing one.
         if let Some(request) = self.requests.get(&request_id) {
             let result_receiver = request.result_sender.subscribe();
-            return ImageRequestHandle::new(result_receiver);
+            return ImageRequestHandle::new(request_id, result_receiver);
         }
 
         // Build and add the request.
@@ -185,7 +196,7 @@ impl ImageRequestQueueInner {
 
         self.queue_request(request_id.clone(), request);
 
-        ImageRequestHandle::new(result_receiver)
+        ImageRequestHandle::new(request_id, result_receiver)
     }
 
     /// Add a request to download an image.
@@ -380,10 +391,12 @@ impl ImageRequest {
         let stalled_timeout_source = self.stalled_timeout_source.clone();
 
         glib::MainContext::default().spawn(async move {
+            if result_sender.receiver_count() == 0 { return; }
+            let canceled_sender = result_sender.clone();
             let task_handle_clone = task_handle.clone();
 
             let abort_handle = spawn!(async move{
-                let request_id = inner.source.request_id();
+                let request_id = inner.request_id();
 
                 let stalled_timeout_source_clone = stalled_timeout_source.clone();
                 let request_id_clone = request_id.clone();
@@ -429,14 +442,16 @@ impl ImageRequest {
                         warn!("Could not send result of image request {request_id}: {error}");
                     }
 
-                    IMAGE_QUEUE.remove_request(&request_id);
+                    IMAGE_QUEUE.remove_request(&request_id, &result_sender);
                 });
             });
 
 
-            if let Ok(Some(handle)) = task_handle.lock().map(|mut s| s.replace(abort_handle)) {
-                // This should not happen, but cancel the old task if we have one.
-                handle.abort();
+            if let Ok(mut handle) = task_handle.lock() {
+                if let Some(old) = handle.replace(abort_handle) { old.abort(); }
+                if canceled_sender.receiver_count() == 0 {
+                    if let Some(handle) = handle.take() { handle.abort(); }
+                }
             }
         });
     }
@@ -451,7 +466,7 @@ impl Drop for ImageRequest {
             handle.abort();
 
             // Broadcast that the request was aborted.
-            let request_id = self.inner.source.request_id();
+            let request_id = self.inner.request_id();
             debug!("Image request {request_id} was aborted");
 
             let result_sender = self.result_sender.clone();
@@ -475,7 +490,7 @@ struct DownloadRequest {
 
 impl IntoFuture for DownloadRequest {
     type Output = Result<ImageDecoderSource, MediaFileError>;
-    type IntoFuture = BoxFuture<'static, Self::Output>;
+    type IntoFuture = LocalBoxFuture<'static, Self::Output>;
 
     fn into_future(self) -> Self::IntoFuture {
         let Self {
@@ -484,9 +499,12 @@ impl IntoFuture for DownloadRequest {
 
         Box::pin(async move {
             let media = client.media();
-            let data = spawn_tokio!(async move { media.get_media_content(&settings, true).await })
+            let task = spawn_tokio!(async move { media.get_media_content(&settings, true).await });
+            let abort = crate::utils::AbortableHandle::default();
+            let data = abort
+                .await_task(task)
                 .await
-                .expect("task should not be aborted")
+                .expect("download task should not be aborted independently")
                 .map_err(MediaFileError::from)?;
 
             let file = ImageDecoderSource::with_bytes(data).await?;
@@ -505,6 +523,11 @@ struct ImageLoaderRequest {
     dimensions: Option<FrameDimensions>,
 }
 
+impl ImageLoaderRequest {
+    fn request_id(&self) -> ImageRequestId {
+        self.source.request_id(self.dimensions)
+    }
+}
 impl IntoFuture for ImageLoaderRequest {
     type Output = Result<Image, ImageError>;
     type IntoFuture = LocalBoxFuture<'static, Self::Output>;
@@ -531,12 +554,23 @@ enum ImageRequestSource {
 
 impl ImageRequestSource {
     /// The ID of the image request with this source.
-    fn request_id(&self) -> ImageRequestId {
+    fn request_id(&self, dimensions: Option<FrameDimensions>) -> ImageRequestId {
         match self {
-            Self::Download(download_request) => {
-                ImageRequestId::Download(download_request.settings.unique_key())
+            Self::Download(download_request) => ImageRequestId::Download {
+                account: serde_json::to_string(&(
+                    download_request.client.homeserver(),
+                    download_request.client.user_id(),
+                    download_request.client.device_id(),
+                ))
+                .expect("account identifiers serialize"),
+                request: download_request.settings.unique_key(),
+                source: serde_json::to_string(&download_request.settings.source)
+                    .expect("media source contains serializable data"),
+                dimensions,
+            },
+            Self::File(file) => {
+                ImageRequestId::File(file.path().expect("file should have a path"), dimensions)
             }
-            Self::File(file) => ImageRequestId::File(file.path().expect("file should have a path")),
         }
     }
 
@@ -558,23 +592,28 @@ impl ImageRequestSource {
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 enum ImageRequestId {
     /// The identifier for a download request.
-    Download(String),
+    Download {
+        account: String,
+        request: String,
+        source: String,
+        dimensions: Option<FrameDimensions>,
+    },
     /// The identifier for a file request.
-    File(PathBuf),
+    File(PathBuf, Option<FrameDimensions>),
 }
 
 impl fmt::Display for ImageRequestId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Download(id) => id.fmt(f),
-            Self::File(path) => path.to_string_lossy().fmt(f),
+            Self::Download { request, .. } => request.fmt(f),
+            Self::File(path, _) => path.to_string_lossy().fmt(f),
         }
     }
 }
 
 /// The priority of an image request.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub(crate) enum ImageRequestPriority {
+pub enum ImageRequestPriority {
     /// The highest priority.
     ///
     /// A request with this priority will be spawned right away and will not be
@@ -597,14 +636,21 @@ pub(crate) enum ImageRequestPriority {
 }
 
 /// A handle for `await`ing an image request.
-pub(crate) struct ImageRequestHandle {
-    receiver: broadcast::Receiver<Result<Image, ImageError>>,
+pub struct ImageRequestHandle {
+    request_id: ImageRequestId,
+    receiver: Option<broadcast::Receiver<Result<Image, ImageError>>>,
 }
 
 impl ImageRequestHandle {
     /// Construct a new `ImageRequestHandle` with the given request ID.
-    fn new(receiver: broadcast::Receiver<Result<Image, ImageError>>) -> Self {
-        Self { receiver }
+    fn new(
+        request_id: ImageRequestId,
+        receiver: broadcast::Receiver<Result<Image, ImageError>>,
+    ) -> Self {
+        Self {
+            request_id,
+            receiver: Some(receiver),
+        }
     }
 }
 
@@ -612,11 +658,15 @@ impl IntoFuture for ImageRequestHandle {
     type Output = Result<Image, ImageError>;
     type IntoFuture = BoxFuture<'static, Self::Output>;
 
-    fn into_future(self) -> Self::IntoFuture {
-        let mut receiver = self.receiver;
+    fn into_future(mut self) -> Self::IntoFuture {
         Box::pin(async move {
-            let handle = spawn_tokio!(async move { receiver.recv().await });
-            match handle.await.expect("task was not aborted") {
+            match self
+                .receiver
+                .as_mut()
+                .expect("receiver is present until drop")
+                .recv()
+                .await
+            {
                 Ok(Ok(image)) => Ok(image),
                 Ok(err) => err,
                 Err(error) => {
@@ -625,5 +675,77 @@ impl IntoFuture for ImageRequestHandle {
                 }
             }
         })
+    }
+}
+
+impl Drop for ImageRequestHandle {
+    fn drop(&mut self) {
+        let mut inner = IMAGE_QUEUE.inner();
+        self.receiver.take();
+        if inner
+            .requests
+            .get(&self.request_id)
+            .is_some_and(|request| request.result_sender.receiver_count() == 0)
+        {
+            inner.remove_request(&self.request_id);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn last_receiver_cancels_queued_decode() {
+        let source =
+            ImageRequestSource::File(gtk::gio::File::for_path("/tmp/fractal-cancel-test").into());
+        let request = ImageLoaderRequest {
+            source,
+            dimensions: None,
+        };
+        let id = request.request_id();
+        let (first, second, limit) = {
+            let mut inner = IMAGE_QUEUE.inner();
+            let limit = inner.limit;
+            inner.limit = 0;
+            let first = inner.add_request(request.clone(), ImageRequestPriority::Default);
+            let second = inner.add_request(request, ImageRequestPriority::Default);
+            (first, second, limit)
+        };
+        drop(first);
+        assert!(IMAGE_QUEUE.inner().requests.contains_key(&id));
+        drop(second);
+        let mut inner = IMAGE_QUEUE.inner();
+        assert!(!inner.requests.contains_key(&id));
+        assert!(!inner.queue_default.contains(&id));
+        inner.limit = limit;
+    }
+
+    #[test]
+    fn local_decodes_at_different_sizes_are_not_coalesced() {
+        let source = ImageRequestSource::File(
+            gtk::gio::File::for_path("/tmp/fractal-request-key-test").into(),
+        );
+        let small = ImageLoaderRequest {
+            source: source.clone(),
+            dimensions: Some(FrameDimensions {
+                width: 48,
+                height: 48,
+            }),
+        };
+        let large = ImageLoaderRequest {
+            source: source.clone(),
+            dimensions: Some(FrameDimensions {
+                width: 600,
+                height: 400,
+            }),
+        };
+        let original = ImageLoaderRequest {
+            source,
+            dimensions: None,
+        };
+        assert_ne!(small.request_id(), large.request_id());
+        assert_ne!(small.request_id(), original.request_id());
+        assert_eq!(small.request_id(), small.clone().request_id());
     }
 }

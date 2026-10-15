@@ -3,7 +3,6 @@
 
 use std::{collections::HashMap, str::FromStr};
 
-use gettextrs::gettext;
 use matrix_sdk::authentication::oauth::ClientId;
 use oo7::{AsAttributes, Item, Keyring, Secret};
 use ruma::{OwnedDeviceId, OwnedUserId};
@@ -46,7 +45,7 @@ mod keys {
 }
 
 /// Secret API under Linux.
-pub(crate) struct LinuxSecret;
+pub struct LinuxSecret;
 
 impl SecretExt for LinuxSecret {
     async fn restore_sessions() -> Result<Vec<StoredSession>, SecretError> {
@@ -482,91 +481,5 @@ impl SecretData {
 impl From<Box<oo7::Error>> for SecretError {
     fn from(value: Box<oo7::Error>) -> Self {
         Self::Service(value.to_user_facing())
-    }
-}
-
-impl UserFacingError for oo7::Error {
-    fn to_user_facing(&self) -> String {
-        match self {
-            oo7::Error::File(error) => error.to_user_facing(),
-            oo7::Error::DBus(error) => error.to_user_facing(),
-        }
-    }
-}
-
-impl UserFacingError for oo7::file::Error {
-    fn to_user_facing(&self) -> String {
-        use oo7::file::Error;
-
-        match self {
-            Error::FileHeaderMismatch(_)
-            | Error::VersionMismatch(_)
-            | Error::NoData
-            | Error::MacError
-            | Error::HashedAttributeMac(_)
-            | Error::GVariantDeserialization(_)
-            | Error::SaltSizeMismatch(..)
-            | Error::ChecksumMismatch
-            | Error::AlgorithmMismatch(_)
-            | Error::IncorrectSecret
-            | Error::Crypto(_)
-            | Error::Utf8(_)
-            | Error::PartiallyCorruptedKeyring { .. } => {
-                gettext("The secret storage file is corrupted.")
-            }
-            Error::NoParentDir(_) | Error::NoDataDir => {
-                gettext("Could not access the secret storage file location.")
-            }
-            Error::Io(_) => {
-                gettext("An unexpected error occurred when accessing the secret storage file.")
-            }
-            Error::TargetFileChanged(_) => {
-                gettext("The secret storage file has been changed by another process.")
-            }
-            Error::Portal(ashpd::Error::Portal(ashpd::PortalError::Cancelled(_))) => gettext(
-                "The request to the Flatpak Secret Portal was cancelled. Make sure to accept any prompt asking to access it.",
-            ),
-            Error::Portal(ashpd::Error::PortalNotFound(_)) => gettext(
-                "The Flatpak Secret Portal is not available. Make sure xdg-desktop-portal is installed, and it is at least at version 1.5.0.",
-            ),
-            Error::Portal(_) => gettext(
-                "An unexpected error occurred when interacting with the D-Bus Secret Portal backend.",
-            ),
-            Error::WeakKey(_) => {
-                gettext("The Flatpak Secret Portal provided a key that is too weak to be secure.")
-            }
-            Error::Locked => gettext("The collection or item is locked."),
-            // Can only occur when using APIs that we do not use.
-            Error::InvalidItemIndex(_) | Error::InvalidKeyLength { .. } => unreachable!(),
-        }
-    }
-}
-
-impl UserFacingError for oo7::dbus::Error {
-    fn to_user_facing(&self) -> String {
-        use oo7::dbus::{Error, ServiceError};
-
-        match self {
-            Error::Deleted => gettext("The item was deleted."),
-            Error::Service(s) => match s {
-                ServiceError::ZBus(_) => gettext(
-                    "An unexpected error occurred when interacting with the D-Bus Secret Service.",
-                ),
-                ServiceError::IsLocked(_) => gettext("The collection or item is locked."),
-                ServiceError::NoSession(_) => {
-                    gettext("The D-Bus Secret Service session does not exist.")
-                }
-                ServiceError::NoSuchObject(_) => gettext("The collection or item does not exist."),
-            },
-            Error::Dismissed => gettext(
-                "The request to the D-Bus Secret Service was cancelled. Make sure to accept any prompt asking to access it.",
-            ),
-            Error::NotFound(_) => gettext(
-                "Could not access the default collection. Make sure a keyring was created and set as default.",
-            ),
-            Error::ZBus(_) | Error::Crypto(_) | Error::IO(_) => gettext(
-                "An unexpected error occurred when interacting with the D-Bus Secret Service.",
-            ),
-        }
     }
 }

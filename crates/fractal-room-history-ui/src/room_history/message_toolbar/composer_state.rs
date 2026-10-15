@@ -469,37 +469,37 @@ impl ComposerState {
     }
 
     /// Attach this state to the given view.
-    pub(crate) fn attach_to_view(&self, view: Option<&sourceview::View>) {
+    pub fn attach_to_view(&self, view: Option<&sourceview::View>) {
         self.imp().attach_to_view(view);
     }
 
     /// Clear this state.
-    pub(crate) fn clear(&self) {
+    pub fn clear(&self) {
         self.imp().clear();
     }
 
     /// The relation to send with the current message.
-    pub(crate) fn related_to(&self) -> Option<RelationInfo> {
+    pub fn related_to(&self) -> Option<RelationInfo> {
         self.imp().related_to()
     }
 
     /// Set the relation to send with the current message.
-    pub(crate) fn set_related_to(&self, related_to: Option<RelationInfo>) {
+    pub fn set_related_to(&self, related_to: Option<RelationInfo>) {
         self.imp().set_related_to(related_to);
     }
 
     /// Update the buffer for the given edit source.
-    pub(crate) fn set_edit_source(&self, event_id: OwnedEventId, message: &Message) {
+    pub fn set_edit_source(&self, event_id: OwnedEventId, message: &Message) {
         self.imp().set_edit_source(event_id, message);
     }
 
     /// Add the given widget at the position of the given iter to this state.
-    pub(crate) fn add_widget(&self, widget: impl IsA<gtk::Widget>, iter: &mut gtk::TextIter) {
+    pub fn add_widget(&self, widget: impl IsA<gtk::Widget>, iter: &mut gtk::TextIter) {
         self.imp().add_widget(widget.upcast(), iter);
     }
 
     /// Get the widget at the given anchor, if any.
-    pub(crate) fn widget_at_anchor(&self, anchor: &gtk::TextChildAnchor) -> Option<gtk::Widget> {
+    pub fn widget_at_anchor(&self, anchor: &gtk::TextChildAnchor) -> Option<gtk::Widget> {
         self.imp().widget_at_anchor(anchor)
     }
 
@@ -520,7 +520,7 @@ impl ComposerState {
 
 /// The possible relations to send with a message.
 #[derive(Debug, Clone)]
-pub(crate) enum RelationInfo {
+pub enum RelationInfo {
     /// Send a reply to the given event.
     Reply(Box<MessageEventSource>),
 
@@ -530,7 +530,7 @@ pub(crate) enum RelationInfo {
 
 impl RelationInfo {
     /// Construct a relation info from a composer draft, if possible.
-    pub(crate) async fn from_draft(room: &Room, draft_type: ComposerDraftType) -> Option<Self> {
+    pub async fn from_draft(room: &Room, draft_type: ComposerDraftType) -> Option<Self> {
         match draft_type {
             ComposerDraftType::NewMessage => None,
             ComposerDraftType::Reply { event_id } => {
@@ -563,7 +563,7 @@ impl RelationInfo {
     }
 
     /// The unique global identifier of the related event.
-    pub(crate) fn event_id(&self) -> OwnedEventId {
+    pub fn event_id(&self) -> OwnedEventId {
         match self {
             RelationInfo::Reply(message_event) => message_event.event_id(),
             RelationInfo::Edit(event_id) => event_id.clone(),
@@ -571,7 +571,7 @@ impl RelationInfo {
     }
 
     /// Get this `RelationInfo` as a draft type.
-    pub(crate) fn as_draft_type(&self) -> ComposerDraftType {
+    pub fn as_draft_type(&self) -> ComposerDraftType {
         match self {
             Self::Reply(message_event) => ComposerDraftType::Reply {
                 event_id: message_event.event_id(),
@@ -651,7 +651,7 @@ struct DetectedMention {
 
 /// The possible sources of a message event.
 #[derive(Debug, Clone)]
-pub(crate) enum MessageEventSource {
+pub enum MessageEventSource {
     /// An original event.
     OriginalEvent(Box<OriginalSyncRoomMessageEvent>),
     /// An [`Event`].
@@ -676,12 +676,12 @@ impl MessageEventSource {
     /// Try to construct a `MessageEventSource` from the given [`Event`].
     ///
     /// Returns `None` if the event is not a message.
-    pub(crate) fn from_event(event: Event) -> Option<Self> {
+    pub fn from_event(event: Event) -> Option<Self> {
         (event.can_be_replied_to()).then_some(Self::Event(event))
     }
 
     /// The ID of the underlying event.
-    pub(crate) fn event_id(&self) -> OwnedEventId {
+    pub fn event_id(&self) -> OwnedEventId {
         match self {
             Self::OriginalEvent(event) => event.event_id.clone(),
             Self::Event(event) => event
@@ -691,7 +691,7 @@ impl MessageEventSource {
     }
 
     /// The ID of the sender of the event.
-    pub(crate) fn sender(&self) -> OwnedUserId {
+    pub fn sender(&self) -> OwnedUserId {
         match self {
             Self::OriginalEvent(event) => event.sender.clone(),
             Self::Event(event) => event.sender_id(),
@@ -702,7 +702,7 @@ impl MessageEventSource {
     ///
     /// Returns `None` if the event was redacted after being selected to be
     /// replied to.
-    pub(crate) fn msgtype(&self) -> Option<MessageType> {
+    pub fn msgtype(&self) -> Option<MessageType> {
         match self {
             Self::OriginalEvent(event) => Some(event.content.msgtype.clone()),
             Self::Event(event) => Some(event.message()?.msgtype().clone()),
@@ -710,7 +710,7 @@ impl MessageEventSource {
     }
 
     /// Whether the message was edited.
-    pub(crate) fn is_edited(&self) -> bool {
+    pub fn is_edited(&self) -> bool {
         match self {
             Self::OriginalEvent(event) => event.unsigned.relations.has_replacement(),
             Self::Event(event) => event.is_edited(),
@@ -718,7 +718,7 @@ impl MessageEventSource {
     }
 
     /// Whether this message might contain an `@room` mention.
-    pub(crate) fn can_contain_at_room(&self) -> bool {
+    pub fn can_contain_at_room(&self) -> bool {
         match self {
             Self::OriginalEvent(event) => event
                 .content

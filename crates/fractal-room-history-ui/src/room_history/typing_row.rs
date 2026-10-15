@@ -1,5 +1,5 @@
 use adw::{prelude::*, subclass::prelude::*};
-use gtk::{glib, glib::clone};
+use gtk::{gio, glib, glib::clone};
 
 use crate::{
     components::OverlappingAvatars,
@@ -95,6 +95,9 @@ mod imp {
                     vec![items_changed_handler_id, is_empty_notify_handler_id],
                 );
                 self.update_label(list);
+            } else {
+                self.avatar_list
+                    .bind_model(None::<&gio::ListModel>, |_| unreachable!());
             }
 
             if prev_is_empty != self.is_empty() {

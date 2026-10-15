@@ -209,7 +209,7 @@ impl PrivilegedMembers {
     }
 
     /// Add the given members to the list.
-    pub(crate) fn add_members(
+    pub fn add_members(
         &self,
         members: impl ExactSizeIterator<Item = (OwnedUserId, MemberPowerLevel)>,
     ) {
@@ -234,7 +234,7 @@ impl PrivilegedMembers {
     }
 
     /// Collect the list of members.
-    pub(crate) fn collect(&self) -> BTreeMap<OwnedUserId, Int> {
+    pub fn collect(&self) -> BTreeMap<OwnedUserId, Int> {
         self.imp()
             .list
             .borrow()

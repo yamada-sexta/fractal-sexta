@@ -31,13 +31,12 @@ mod user;
 mod user_sessions_list;
 mod verification;
 
-pub(crate) use self::{
+pub use self::{
     global_account_data::*, ignored_users::*, notifications::*, remote::*, room::*, room_list::*,
     security::*, session_settings::*, sidebar_data::*, user::*, user_sessions_list::*,
     verification::*,
 };
 use crate::{
-    Application,
     components::AvatarData,
     prelude::*,
     secret::StoredSession,
@@ -81,6 +80,7 @@ mod imp {
     #[derive(Debug, Default, glib::Properties)]
     #[properties(wrapper_type = super::Session)]
     pub struct Session {
+        pub(super) image_cache: fractal_media::media::image::ImageCache,
         /// The Matrix client for this session.
         client: OnceCell<TokioDrop<Client>>,
         /// The list model of the sidebar.
@@ -703,6 +703,7 @@ mod imp {
         /// This should only be called if the session has been logged out
         /// without calling `Session::log_out`.
         pub(super) async fn clean_up(&self) {
+            self.image_cache.clear();
             let obj = self.obj();
             self.set_state(SessionState::LoggedOut);
 
@@ -733,8 +734,11 @@ glib::wrapper! {
 }
 
 impl Session {
+    pub fn image_cache(&self) -> &fractal_media::media::image::ImageCache {
+        &self.imp().image_cache
+    }
     /// Construct an existing session.
-    pub(crate) async fn new(
+    pub async fn new(
         stored_session: StoredSession,
         settings: SessionSettings,
     ) -> Result<Self, ClientSetupError> {
@@ -773,43 +777,43 @@ impl Session {
     }
 
     /// Create a new session from the session of the given Matrix client.
-    pub(crate) async fn create(client: &Client) -> Result<Self, ClientSetupError> {
+    pub async fn create(
+        client: &Client,
+        session_settings: &crate::session_list::SessionListSettings,
+    ) -> Result<Self, ClientSetupError> {
         let stored_session = StoredSession::new(client).await?;
-        let settings = Application::default()
-            .session_list()
-            .settings()
-            .get_or_create(&stored_session.id);
+        let settings = session_settings.get_or_create(&stored_session.id);
 
         Self::new(stored_session, settings).await
     }
 
     /// Finish initialization of this session.
-    pub(crate) async fn prepare(&self) {
+    pub async fn prepare(&self) {
         self.imp().prepare().await;
     }
 
     /// The room list of this session.
-    pub(crate) fn room_list(&self) -> RoomList {
+    pub fn room_list(&self) -> RoomList {
         self.imp().room_list()
     }
 
     /// The verification list of this session.
-    pub(crate) fn verification_list(&self) -> VerificationList {
+    pub fn verification_list(&self) -> VerificationList {
         self.imp().verification_list()
     }
 
     /// The Matrix client.
-    pub(crate) fn client(&self) -> Client {
+    pub fn client(&self) -> Client {
         self.imp().client().clone()
     }
 
     /// The cache for remote data.
-    pub(crate) fn remote_cache(&self) -> &RemoteCache {
+    pub fn remote_cache(&self) -> &RemoteCache {
         self.imp().remote_cache()
     }
 
     /// Log out of this session.
-    pub(crate) async fn log_out(&self) -> Result<(), String> {
+    pub async fn log_out(&self) -> Result<(), String> {
         debug!(
             session = self.session_id(),
             "The session is about to be logged out"
@@ -837,12 +841,12 @@ impl Session {
     ///
     /// This should only be called if the session has been logged out without
     /// calling `Session::log_out`.
-    pub(crate) async fn clean_up(&self) {
+    pub async fn clean_up(&self) {
         self.imp().clean_up().await;
     }
 
     /// Connect to the signal emitted when this session is logged out.
-    pub(crate) fn connect_logged_out<F: Fn(&Self) + 'static>(&self, f: F) -> glib::SignalHandlerId {
+    pub fn connect_logged_out<F: Fn(&Self) + 'static>(&self, f: F) -> glib::SignalHandlerId {
         self.connect_state_notify(move |obj| {
             if obj.state() == SessionState::LoggedOut {
                 f(obj);
@@ -851,7 +855,7 @@ impl Session {
     }
 
     /// Connect to the signal emitted when this session is ready.
-    pub(crate) fn connect_ready<F: Fn(&Self) + 'static>(&self, f: F) -> glib::SignalHandlerId {
+    pub fn connect_ready<F: Fn(&Self) + 'static>(&self, f: F) -> glib::SignalHandlerId {
         self.connect_state_notify(move |obj| {
             if obj.state() == SessionState::Ready {
                 f(obj);

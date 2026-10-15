@@ -85,7 +85,7 @@ impl LoginAdvancedDialog {
     /// Present this dialog.
     ///
     /// Returns when the dialog is closed.
-    pub(crate) async fn run_future(&self, parent: &impl IsA<gtk::Widget>) {
+    pub async fn run_future(&self, parent: &impl IsA<gtk::Widget>) {
         self.imp().run_future(parent.upcast_ref()).await;
     }
 }

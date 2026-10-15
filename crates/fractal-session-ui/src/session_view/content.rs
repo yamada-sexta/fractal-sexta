@@ -70,7 +70,7 @@ mod imp {
         #[template_child]
         stack: TemplateChild<gtk::Stack>,
         #[template_child]
-        room_history: TemplateChild<RoomHistory>,
+        pub(super) room_history: TemplateChild<RoomHistory>,
         #[template_child]
         invite_request: TemplateChild<InviteRequest>,
         #[template_child]
@@ -161,6 +161,10 @@ mod imp {
 
         /// Set the visible page of the content.
         fn set_visible_page(&self, page: ContentPage) {
+            if page != ContentPage::RoomHistory {
+                self.room_history
+                    .set_timeline(None::<crate::session::Timeline>);
+            }
             if self.visible_page() == page {
                 return;
             }
@@ -302,17 +306,20 @@ glib::wrapper! {
 }
 
 impl Content {
+    pub fn room_history(&self) -> &RoomHistory {
+        &self.imp().room_history
+    }
     pub fn new(session: &Session) -> Self {
         glib::Object::builder().property("session", session).build()
     }
 
     /// Handle a paste action.
-    pub(crate) fn handle_paste_action(&self) {
+    pub fn handle_paste_action(&self) {
         self.imp().handle_paste_action();
     }
 
     /// All the header bars of the children of the content.
-    pub(crate) fn header_bars(&self) -> [&adw::HeaderBar; 6] {
+    pub fn header_bars(&self) -> [&adw::HeaderBar; 6] {
         self.imp().header_bars()
     }
 }

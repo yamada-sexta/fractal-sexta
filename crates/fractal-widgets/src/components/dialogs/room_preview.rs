@@ -4,7 +4,6 @@ use gtk::{glib, glib::clone};
 
 use super::ToastableDialog;
 use crate::{
-    Window,
     components::{Avatar, LoadingButton},
     i18n::ngettext_f,
     prelude::*,
@@ -96,13 +95,10 @@ mod imp {
                     let Ok(uri) = MatrixIdUri::parse(uri) else {
                         return glib::Propagation::Proceed;
                     };
-                    let Some(parent_window) =
-                        obj.ancestor(Window::static_type()).and_downcast::<Window>()
-                    else {
+                    let Some(session) = obj.imp().session.upgrade() else {
                         return glib::Propagation::Proceed;
                     };
-
-                    parent_window.session_view().show_matrix_uri(uri);
+                    crate::navigation::show_matrix_id(&session, uri);
                     glib::Propagation::Stop
                 }
             ));
@@ -268,7 +264,7 @@ mod imp {
             };
             let obj = self.obj();
 
-            let Some(window) = obj.root().and_downcast::<Window>() else {
+            let Some(session) = self.session.upgrade() else {
                 return;
             };
 
@@ -276,7 +272,8 @@ mod imp {
             self.entry_page.set_sensitive(false);
 
             // Join or view the room with the given identifier.
-            if window.session_view().select_room_if_exists(&uri.id) {
+            if let Some(local_room) = session.room_list().get_by_identifier(&uri.id) {
+                crate::navigation::show_room(&local_room);
                 obj.close();
             } else {
                 self.look_up_room_inner(uri);
@@ -380,10 +377,8 @@ mod imp {
             if let Some(local_room) = room.room_list_info().local_room() {
                 let obj = self.obj();
 
-                if let Some(window) = obj.root().and_downcast_ref::<Window>() {
-                    window.session_view().select_room(local_room);
-                    obj.close();
-                }
+                crate::navigation::show_room(&local_room);
+                obj.close();
             } else {
                 self.knock_or_join_room(&room).await;
             }
@@ -411,10 +406,8 @@ mod imp {
                 Ok(room_id) => {
                     let obj = self.obj();
 
-                    if let Some(local_room) = room_list.get_wait(&room_id, None).await
-                        && let Some(window) = obj.root().and_downcast_ref::<Window>()
-                    {
-                        window.session_view().select_room(local_room);
+                    if let Some(local_room) = room_list.get_wait(&room_id, None).await {
+                        crate::navigation::show_room(&local_room);
                     }
 
                     obj.close();
@@ -472,12 +465,12 @@ impl RoomPreviewDialog {
     }
 
     /// Set the room URI to look up.
-    pub(crate) fn set_uri(&self, uri: MatrixRoomIdUri) {
+    pub fn set_uri(&self, uri: MatrixRoomIdUri) {
         self.imp().set_uri(uri);
     }
 
     /// Set the room to preview.
-    pub(crate) fn set_room(&self, room: &RemoteRoom) {
+    pub fn set_room(&self, room: &RemoteRoom) {
         let imp = self.imp();
         imp.disable_go_back(true);
         imp.set_room(room);

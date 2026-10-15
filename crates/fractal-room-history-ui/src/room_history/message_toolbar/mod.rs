@@ -28,14 +28,13 @@ mod completion;
 mod composer_parser;
 mod composer_state;
 
-pub(crate) use self::composer_state::{ComposerState, MessageEventSource, RelationInfo};
+pub use self::composer_state::{ComposerState, MessageEventSource, RelationInfo};
 use self::{
     attachment_dialog::AttachmentDialog, completion::CompletionPopover,
     composer_parser::ComposerParser,
 };
 use super::message_row::MessageContent;
 use crate::{
-    Application, Window,
     components::{AvatarImageSafetySetting, CustomEntry, LabelWithWidgets, LoadingButton},
     gettext_f,
     prelude::*,
@@ -177,7 +176,7 @@ mod imp {
             let obj = self.obj();
 
             // Markdown highlighting.
-            let settings = Application::default().settings();
+            let settings = gtk::gio::Settings::new(crate::APP_ID);
             settings
                 .bind("markdown-enabled", &*obj, "markdown-enabled")
                 .build();
@@ -1229,11 +1228,7 @@ mod imp {
                 .successor()
                 .or_else(|| self.successor_room_list_info.local_room())
             {
-                let Some(window) = obj.root().and_downcast::<Window>() else {
-                    return;
-                };
-
-                window.session_view().select_room(successor);
+                fractal_widgets::navigation::show_room(&successor);
             } else if let Some(successor_id) = room.successor_id().cloned() {
                 // Route the successor room ID via the server of the sender of the tombstone
                 // event, which is likely to know the room.
@@ -1294,17 +1289,17 @@ impl MessageToolbar {
     }
 
     /// Add a mention of the given member to the message composer.
-    pub(crate) fn mention_member(&self, member: &Member) {
+    pub fn mention_member(&self, member: &Member) {
         self.imp().mention_member(member);
     }
 
     /// Set the event to reply to.
-    pub(crate) fn set_reply_to(&self, event: Event) {
+    pub fn set_reply_to(&self, event: Event) {
         self.imp().set_reply_to(event);
     }
 
     /// Set the event to edit.
-    pub(crate) fn set_edit(&self, event: &Event) {
+    pub fn set_edit(&self, event: &Event) {
         self.imp().set_edit(event);
     }
 
@@ -1312,12 +1307,12 @@ impl MessageToolbar {
     ///
     /// Shows a preview of the file first, if possible, and asks the user to
     /// confirm the action.
-    pub(crate) async fn send_file(&self, file: gio::File) {
+    pub async fn send_file(&self, file: gio::File) {
         self.imp().send_file(file).await;
     }
 
     /// Handle a paste action.
-    pub(crate) fn handle_paste_action(&self) {
+    pub fn handle_paste_action(&self) {
         let imp = self.imp();
 
         if !imp.can_compose_message() {

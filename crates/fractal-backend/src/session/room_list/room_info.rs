@@ -144,7 +144,7 @@ impl RoomListRoomInfo {
     }
 
     /// Set the room identifiers to watch.
-    pub(crate) fn set_identifiers(&self, identifiers: Vec<OwnedRoomOrAliasId>) {
+    pub fn set_identifiers(&self, identifiers: Vec<OwnedRoomOrAliasId>) {
         self.imp().set_identifiers(identifiers);
     }
 }

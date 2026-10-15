@@ -1,0 +1,38 @@
+[package]
+name = "fractal-media"
+version.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+blurhash.workspace = true
+fast_image_resize.workspace = true
+fractal-config = { path = "../fractal-config" }
+fractal-core = { path = "../fractal-core" }
+fractal-gtk-utils = { path = "../fractal-gtk-utils" }
+futures-util.workspace = true
+gettext-rs.workspace = true
+glycin.workspace = true
+glycin-gtk4.workspace = true
+gst.workspace = true
+gst_app.workspace = true
+gst_pbutils.workspace = true
+gst_video.workspace = true
+gtk.workspace = true
+matrix-sdk.workspace = true
+matrix-sdk-ui.workspace = true
+mime.workspace = true
+mime_guess.workspace = true
+quick_cache.workspace = true
+ruma.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+webp.workspace = true
+
+[lints]
+workspace = true

@@ -31,7 +31,7 @@ mod timeline_item;
 mod virtual_item;
 
 use self::timeline_diff_minimizer::{TimelineDiff, TimelineDiffItemStore};
-pub(crate) use self::{
+pub use self::{
     event::*,
     timeline_item::{TimelineItem, TimelineItemExt, TimelineItemImpl},
     virtual_item::{VirtualItem, VirtualItemKind},
@@ -236,18 +236,10 @@ mod imp {
                 let room_id = room_id.clone();
                 async move {
                     let ctx = glib::MainContext::default();
-                    ctx.spawn(async move {
-                        spawn!(async move {
-                            if let Some(obj) = obj_weak.upgrade() {
-                                obj.imp().update_with_diff_list(diff_list);
-                            } else {
-                                error!(
-                                    "Could not send timeline diff for room {room_id}: \
-                                     could not upgrade weak reference"
-                                );
-                            }
-                        });
-                    });
+                    if let Err(error) = ctx.spawn(async move {
+                        if let Some(obj) = obj_weak.upgrade() { obj.imp().update_with_diff_list(diff_list); }
+                        else { error!("Could not send timeline diff for room {room_id}: could not upgrade weak reference"); }
+                    }).await { error!("Timeline update task failed: {error}"); }
                 }
             });
 
@@ -949,7 +941,7 @@ glib::wrapper! {
 
 impl Timeline {
     /// Construct a new `Timeline` for the given room.
-    pub(crate) fn new(room: &Room) -> Self {
+    pub fn new(room: &Room) -> Self {
         let obj = glib::Object::builder::<Self>()
             .property("room", room)
             .build();
@@ -967,13 +959,13 @@ impl Timeline {
     }
 
     /// The underlying SDK timeline.
-    pub(crate) fn matrix_timeline(&self) -> Arc<SdkTimeline> {
+    pub fn matrix_timeline(&self) -> Arc<SdkTimeline> {
         self.imp().matrix_timeline().clone()
     }
 
     /// Load more events at the start of the timeline until the given function
     /// tells us to stop.
-    pub(crate) async fn paginate_backwards<F>(&self, continue_fn: F)
+    pub async fn paginate_backwards<F>(&self, continue_fn: F)
     where
         F: Fn() -> ControlFlow<()>,
     {
@@ -990,13 +982,13 @@ impl Timeline {
     ///
     /// Use this method if you are sure the event has already been received.
     /// Otherwise use `fetch_event_by_id`.
-    pub(crate) fn event_by_identifier(&self, identifier: &TimelineEventItemId) -> Option<Event> {
+    pub fn event_by_identifier(&self, identifier: &TimelineEventItemId) -> Option<Event> {
         self.imp().event_map.borrow().get(identifier).cloned()
     }
 
     /// Get the position of the event with the given identifier in this
     /// `Timeline`.
-    pub(crate) fn find_event_position(&self, identifier: &TimelineEventItemId) -> Option<usize> {
+    pub fn find_event_position(&self, identifier: &TimelineEventItemId) -> Option<usize> {
         self.items()
             .iter::<glib::Object>()
             .enumerate()
@@ -1009,7 +1001,7 @@ impl Timeline {
     }
 
     /// Remove the typing row from the timeline.
-    pub(crate) fn remove_empty_typing_row(&self) {
+    pub fn remove_empty_typing_row(&self) {
         self.imp().remove_empty_typing_row();
     }
 
@@ -1017,7 +1009,7 @@ impl Timeline {
     ///
     /// Returns `None` if it is not possible to know, for example if there are
     /// no events in the Timeline.
-    pub(crate) async fn has_unread_messages(&self) -> Option<bool> {
+    pub async fn has_unread_messages(&self) -> Option<bool> {
         let session = self.room().session()?;
         let own_user_id = session.user_id().clone();
         let matrix_timeline = self.matrix_timeline();
@@ -1055,7 +1047,7 @@ impl Timeline {
     }
 
     /// The IDs of redactable events sent by the given user in this timeline.
-    pub(crate) fn redactable_events_for(&self, user_id: &UserId) -> Vec<OwnedEventId> {
+    pub fn redactable_events_for(&self, user_id: &UserId) -> Vec<OwnedEventId> {
         let mut events = vec![];
 
         for item in self.imp().sdk_items().iter::<glib::Object>() {
@@ -1087,7 +1079,7 @@ impl Timeline {
     }
 
     /// Connect to the trigger emitted when a read change might have occurred.
-    pub(crate) fn connect_read_change_trigger<F: Fn(&Self) + 'static>(
+    pub fn connect_read_change_trigger<F: Fn(&Self) + 'static>(
         &self,
         f: F,
     ) -> glib::SignalHandlerId {

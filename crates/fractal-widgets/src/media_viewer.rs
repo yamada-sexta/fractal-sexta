@@ -6,6 +6,7 @@ use tracing::warn;
 
 use crate::{
     components::{MediaContentViewer, ScaleRevealer},
+    prelude::MediaMessageSaveExt,
     session::Room,
     spawn, toast,
     utils::matrix::VisualMediaMessage,
@@ -535,12 +536,12 @@ impl MediaViewer {
     }
 
     /// Reveal this widget by transitioning from `source_widget`.
-    pub(crate) fn reveal(&self, source_widget: &impl IsA<gtk::Widget>) {
+    pub fn reveal(&self, source_widget: &impl IsA<gtk::Widget>) {
         self.imp().reveal(source_widget.upcast_ref());
     }
 
     /// Set the media message to display in the given room.
-    pub(crate) fn set_message(
+    pub fn set_message(
         &self,
         room: &Room,
         message: VisualMediaMessage,

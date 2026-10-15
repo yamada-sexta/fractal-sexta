@@ -36,7 +36,7 @@ pub enum NotificationsGlobalSetting {
 
 impl NotificationsGlobalSetting {
     /// Get the string representation of this value.
-    pub(crate) fn as_str(self) -> &'static str {
+    pub fn as_str(self) -> &'static str {
         match self {
             Self::All => "all",
             Self::DirectAndMentions => "direct-and-mentions",
@@ -47,7 +47,7 @@ impl NotificationsGlobalSetting {
     /// Construct a `NotificationsGlobalSetting` from its string representation.
     ///
     /// Panics if the string does not match a variant of this enum.
-    pub(crate) fn from_str(s: &str) -> Self {
+    pub fn from_str(s: &str) -> Self {
         match s {
             "all" => Self::All,
             "direct-and-mentions" => Self::DirectAndMentions,
@@ -427,7 +427,7 @@ impl NotificationsSettings {
     }
 
     /// Set whether notifications are enabled for this session.
-    pub(crate) async fn set_account_enabled(
+    pub async fn set_account_enabled(
         &self,
         enabled: bool,
     ) -> Result<(), NotificationSettingsError> {
@@ -461,7 +461,7 @@ impl NotificationsSettings {
     }
 
     /// Set the global setting about which messages trigger notifications.
-    pub(crate) async fn set_global_setting(
+    pub async fn set_global_setting(
         &self,
         setting: NotificationsGlobalSetting,
     ) -> Result<(), NotificationSettingsError> {
@@ -494,10 +494,7 @@ impl NotificationsSettings {
     }
 
     /// Remove a keyword from the list.
-    pub(crate) async fn remove_keyword(
-        &self,
-        keyword: String,
-    ) -> Result<(), NotificationSettingsError> {
+    pub async fn remove_keyword(&self, keyword: String) -> Result<(), NotificationSettingsError> {
         let imp = self.imp();
 
         let Some(api) = imp.api() else {
@@ -519,10 +516,7 @@ impl NotificationsSettings {
     }
 
     /// Add a keyword to the list.
-    pub(crate) async fn add_keyword(
-        &self,
-        keyword: String,
-    ) -> Result<(), NotificationSettingsError> {
+    pub async fn add_keyword(&self, keyword: String) -> Result<(), NotificationSettingsError> {
         let imp = self.imp();
 
         let Some(api) = imp.api() else {
@@ -544,7 +538,7 @@ impl NotificationsSettings {
     }
 
     /// Set the notification setting for the room with the given ID.
-    pub(crate) async fn set_per_room_setting(
+    pub async fn set_per_room_setting(
         &self,
         room_id: OwnedRoomId,
         setting: NotificationsRoomSetting,

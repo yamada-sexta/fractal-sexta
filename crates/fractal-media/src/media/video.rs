@@ -14,7 +14,7 @@ use crate::utils::OneshotNotifier;
 
 /// Load information and try to generate a thumbnail for the video in the given
 /// file.
-pub(crate) async fn load_video_info(
+pub async fn load_video_info(
     file: &gio::File,
     widget: &impl IsA<gtk::Widget>,
 ) -> (BaseVideoInfo, Option<Thumbnail>) {
@@ -124,7 +124,8 @@ async fn generate_video_thumbnail_and_blurhash(
 
     let texture = texture?;
     let thumbnail_blurhash = TextureThumbnailer(texture)
-        .generate_thumbnail_and_blurhash(widget.scale_factor(), &renderer);
+        .generate_thumbnail_and_blurhash(widget.scale_factor(), &renderer)
+        .await;
 
     if thumbnail_blurhash.is_none() {
         warn!("Could not generate thumbnail and Blurhash from GdkTexture");

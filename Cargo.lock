@@ -896,6 +896,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "document-features"
+version = "0.2.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d4b8a88685455ed29a21542a33abd9cb6510b6b129abadabdcef0f4c55bc8f61"
+dependencies = [
+ "litrs",
+]
+
+[[package]]
 name = "dunce"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -982,7 +991,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -1070,6 +1079,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "fast_image_resize"
+version = "6.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e9c50201dc184ba6553da1695aac20a042efffbe2d84542cee31917c86c3ab1e"
+dependencies = [
+ "cfg-if",
+ "document-features",
+ "num-traits",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "fastrand"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1134,55 +1155,270 @@ name = "fractal"
 version = "14.1.0"
 dependencies = [
  "aperture",
- "as_variant",
- "ashpd",
- "blurhash",
- "eyeball",
- "futures-channel",
- "futures-util",
- "geo-uri",
+ "fractal-accounts-ui",
+ "fractal-backend",
+ "fractal-config",
+ "fractal-core",
+ "fractal-gtk-utils",
+ "fractal-session-ui",
+ "fractal-verification-ui",
+ "fractal-widgets",
  "gettext-rs",
  "gstreamer",
- "gstreamer-app",
- "gstreamer-pbutils",
- "gstreamer-play",
- "gstreamer-video",
+ "gtk4",
+ "libadwaita",
+ "serde_bytes",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "fractal-accounts-ui"
+version = "14.1.0"
+dependencies = [
+ "as_variant",
+ "fractal-backend",
+ "fractal-config",
+ "fractal-core",
+ "fractal-gtk-utils",
+ "fractal-verification-ui",
+ "fractal-widgets",
+ "gettext-rs",
+ "gtk4",
+ "libadwaita",
+ "matrix-sdk",
+ "ruma",
+ "serde",
+ "strass",
+ "tokio",
+ "tracing",
+ "url",
+]
+
+[[package]]
+name = "fractal-backend"
+version = "14.1.0"
+dependencies = [
+ "fractal-config",
+ "fractal-core",
+ "fractal-gtk-utils",
+ "fractal-media",
+ "futures-channel",
+ "futures-util",
+ "gettext-rs",
  "gtk4",
  "indexmap",
- "libadwaita",
- "libglycin-gtk4-rebind",
- "libglycin-rebind",
- "libshumate",
- "linkify",
  "matrix-sdk",
  "matrix-sdk-store-encryption",
  "matrix-sdk-ui",
- "mime",
- "mime_guess",
  "oo7",
- "pulldown-cmark",
  "qrcode",
  "quick_cache",
  "rand 0.10.3",
- "regex",
  "rmp-serde",
  "ruma",
- "secular",
  "serde",
  "serde_bytes",
  "serde_json",
- "sourceview5",
  "strass",
- "tempfile",
  "thiserror 2.0.21",
- "tld",
  "tokio",
  "tokio-stream",
  "tracing",
  "tracing-subscriber",
  "url",
- "webp",
  "zeroize",
+]
+
+[[package]]
+name = "fractal-config"
+version = "14.1.0"
+
+[[package]]
+name = "fractal-core"
+version = "14.1.0"
+dependencies = [
+ "ashpd",
+ "eyeball",
+ "fractal-config",
+ "futures-channel",
+ "futures-util",
+ "gettext-rs",
+ "gtk4",
+ "libadwaita",
+ "linkify",
+ "matrix-sdk",
+ "oo7",
+ "regex",
+ "ruma",
+ "tempfile",
+ "tld",
+ "tokio",
+ "tracing",
+ "url",
+]
+
+[[package]]
+name = "fractal-gtk-utils"
+version = "14.1.0"
+dependencies = [
+ "aperture",
+ "ashpd",
+ "fractal-core",
+ "futures-util",
+ "geo-uri",
+ "gettext-rs",
+ "gtk4",
+ "indexmap",
+ "libadwaita",
+ "matrix-sdk",
+ "qrcode",
+ "secular",
+ "sourceview5",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "fractal-media"
+version = "14.1.0"
+dependencies = [
+ "blurhash",
+ "fast_image_resize",
+ "fractal-config",
+ "fractal-core",
+ "fractal-gtk-utils",
+ "futures-util",
+ "gettext-rs",
+ "gstreamer",
+ "gstreamer-app",
+ "gstreamer-pbutils",
+ "gstreamer-video",
+ "gtk4",
+ "libglycin-gtk4-rebind",
+ "libglycin-rebind",
+ "matrix-sdk",
+ "matrix-sdk-ui",
+ "mime",
+ "mime_guess",
+ "quick_cache",
+ "ruma",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+ "webp",
+]
+
+[[package]]
+name = "fractal-room-details-ui"
+version = "14.1.0"
+dependencies = [
+ "fractal-backend",
+ "fractal-config",
+ "fractal-core",
+ "fractal-gtk-utils",
+ "fractal-widgets",
+ "gettext-rs",
+ "gtk4",
+ "indexmap",
+ "libadwaita",
+ "matrix-sdk",
+ "ruma",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "fractal-room-history-ui"
+version = "14.1.0"
+dependencies = [
+ "as_variant",
+ "fractal-backend",
+ "fractal-config",
+ "fractal-core",
+ "fractal-gtk-utils",
+ "fractal-room-details-ui",
+ "fractal-widgets",
+ "futures-util",
+ "geo-uri",
+ "gettext-rs",
+ "gtk4",
+ "libadwaita",
+ "matrix-sdk",
+ "matrix-sdk-ui",
+ "mime",
+ "pulldown-cmark",
+ "ruma",
+ "secular",
+ "sourceview5",
+ "tracing",
+]
+
+[[package]]
+name = "fractal-session-ui"
+version = "14.1.0"
+dependencies = [
+ "fractal-accounts-ui",
+ "fractal-backend",
+ "fractal-config",
+ "fractal-core",
+ "fractal-gtk-utils",
+ "fractal-room-details-ui",
+ "fractal-room-history-ui",
+ "fractal-verification-ui",
+ "fractal-widgets",
+ "gettext-rs",
+ "gtk4",
+ "indexmap",
+ "libadwaita",
+ "matrix-sdk",
+ "ruma",
+ "secular",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "fractal-verification-ui"
+version = "14.1.0"
+dependencies = [
+ "fractal-backend",
+ "fractal-config",
+ "fractal-core",
+ "fractal-gtk-utils",
+ "fractal-widgets",
+ "gettext-rs",
+ "gtk4",
+ "libadwaita",
+ "matrix-sdk",
+ "ruma",
+ "serde_json",
+ "tracing",
+]
+
+[[package]]
+name = "fractal-widgets"
+version = "14.1.0"
+dependencies = [
+ "fractal-backend",
+ "fractal-config",
+ "fractal-core",
+ "fractal-gtk-utils",
+ "fractal-media",
+ "geo-uri",
+ "gettext-rs",
+ "gstreamer",
+ "gstreamer-play",
+ "gtk4",
+ "libadwaita",
+ "libshumate",
+ "matrix-sdk",
+ "ruma",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -1499,7 +1735,7 @@ dependencies = [
  "gobject-sys",
  "libc",
  "system-deps 9.0.0",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -2648,6 +2884,12 @@ name = "litemap"
 version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "47d9d19d1d6efa0109d2f65ff4c85cddd50bd572e5a00127ab10987290bcefae"
+
+[[package]]
+name = "litrs"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "11d3d7f243d5c5a8b9bb5d6dd2b1602c0cb0b9db1621bafc7ed66e35ff9fe092"
 
 [[package]]
 name = "locale_config"
@@ -3828,7 +4070,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -4250,7 +4492,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -4307,7 +4549,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -4505,9 +4747,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.151"
+version = "1.0.154"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c841b55ecdae098c80dcae9cf767f6f8a0c2cdb3416bbef72181df4d0fe73f14"
+checksum = "e7e9cc8b1b85264074fbcc02a88680c4096b1e47df8f739dceb03bf482f04bd6"
 dependencies = [
  "itoa",
  "memchr",
@@ -4859,10 +5101,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "once_cell",
  "rustix",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -4971,9 +5213,9 @@ checksum = "fd3ca314f692efd6c868f8408f53fe444634a845f96c028b97d35f6a1f79f0ee"
 
 [[package]]
 name = "tld"
-version = "2.41.0"
+version = "2.43.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "873923f27fa32ee138d2489e07577c3af2dec11ce0cabcce0b28099cde2948fe"
+checksum = "7e1f6968e11a01a073c95962dae074bb15aae4f455bd4faf9b2b204c834ac85f"
 dependencies = [
  "phf 0.11.3",
  "phf_codegen 0.11.3",
@@ -4981,9 +5223,9 @@ dependencies = [
 
 [[package]]
 name = "tokio"
-version = "1.53.1"
+version = "1.53.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "202caea871b69668250d242070849eb495be178ed697a3e98aebce5bc81a0bed"
+checksum = "ce3335fa71841cda333a58d7615b03901380ecf09d59b3296d21f8bbac0dde4e"
 dependencies = [
  "bytes",
  "libc",
@@ -5604,7 +5846,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -5924,9 +6166,9 @@ dependencies = [
 
 [[package]]
 name = "zeroize"
-version = "1.9.0"
+version = "1.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e13c156562582aa81c60cb29407084cdb54c4164760106ab78e6c5b0858cf64e"
+checksum = "e13084392c5e4bc371903e2935a5eaeed24905a7511356b883835e18a78f6879"
 dependencies = [
  "zeroize_derive",
 ]

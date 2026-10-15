@@ -65,7 +65,7 @@ impl PublicAddress {
     }
 
     /// The room alias.
-    pub(crate) fn alias(&self) -> &OwnedRoomAliasId {
+    pub fn alias(&self) -> &OwnedRoomAliasId {
         self.imp().alias()
     }
 }

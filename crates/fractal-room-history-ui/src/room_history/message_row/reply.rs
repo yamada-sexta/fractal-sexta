@@ -103,17 +103,17 @@ impl MessageReply {
     }
 
     /// Set the sender of the replied-to event.
-    pub(crate) fn set_related_content_sender(&self, user: &User) {
+    pub fn set_related_content_sender(&self, user: &User) {
         self.imp().set_related_content_sender(user);
     }
 
     /// The widget containing the replied-to content.
-    pub(crate) fn related_content(&self) -> &adw::Bin {
+    pub fn related_content(&self) -> &adw::Bin {
         self.imp().related_content()
     }
 
     /// The widget containing the reply's content.
-    pub(crate) fn content(&self) -> &adw::Bin {
+    pub fn content(&self) -> &adw::Bin {
         self.imp().content()
     }
 }

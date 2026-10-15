@@ -246,17 +246,17 @@ impl ExploreServerList {
     }
 
     /// Whether this list contains the given Matrix server.
-    pub(crate) fn contains_matrix_server(&self, server_name: &ServerName) -> bool {
+    pub fn contains_matrix_server(&self, server_name: &ServerName) -> bool {
         self.imp().contains_matrix_server(server_name)
     }
 
     /// Add a custom Matrix server.
-    pub(crate) fn add_custom_server(&self, server_name: OwnedServerName) {
+    pub fn add_custom_server(&self, server_name: OwnedServerName) {
         self.imp().add_custom_server(server_name);
     }
 
     /// Remove a custom Matrix server.
-    pub(crate) fn remove_custom_server(&self, server_name: &ServerName) {
+    pub fn remove_custom_server(&self, server_name: &ServerName) {
         self.imp().remove_custom_server(server_name);
     }
 }

@@ -16,14 +16,14 @@ struct RemoteCacheData {
 
 /// An API to query remote data and cache it.
 #[derive(Clone)]
-pub(crate) struct RemoteCache {
+pub struct RemoteCache {
     session: Session,
     data: Rc<RemoteCacheData>,
 }
 
 impl RemoteCache {
     /// Construct a new `RemoteCache` for the given session.
-    pub(crate) fn new(session: Session) -> Self {
+    pub fn new(session: Session) -> Self {
         Self {
             session,
             data: RemoteCacheData {
@@ -35,7 +35,7 @@ impl RemoteCache {
     }
 
     /// Get the remote room for the given URI.
-    pub(crate) fn room(&self, uri: MatrixRoomIdUri) -> RemoteRoom {
+    pub fn room(&self, uri: MatrixRoomIdUri) -> RemoteRoom {
         let mut rooms = self.data.rooms.borrow_mut();
 
         // Check if the room is in the cache.
@@ -84,7 +84,7 @@ impl RemoteCache {
     }
 
     /// Get the remote user for the given ID.
-    pub(crate) fn user(&self, user_id: OwnedUserId) -> RemoteUser {
+    pub fn user(&self, user_id: OwnedUserId) -> RemoteUser {
         let mut users = self.data.users.borrow_mut();
 
         // Check if the user is in the cache.

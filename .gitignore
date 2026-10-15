@@ -17,7 +17,6 @@ target/
 *.ui~
 
 # Dynamically-generated files
-src/config.rs
 hooks/checks-bin
 
 # GitHub Actions build and publication outputs

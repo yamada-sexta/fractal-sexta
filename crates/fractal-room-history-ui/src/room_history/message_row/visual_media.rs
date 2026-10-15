@@ -6,7 +6,6 @@ use tracing::warn;
 
 use super::ContentFormat;
 use crate::{
-    Window,
     components::{AnimatedImagePaintable, VideoPlayer},
     gettext_f,
     session::Room,
@@ -54,6 +53,8 @@ mod imp {
     )]
     #[properties(wrapper_type = super::MessageVisualMedia)]
     pub struct MessageVisualMedia {
+        generation: Cell<u64>,
+        load_task: RefCell<Option<glib::JoinHandle<()>>>,
         #[template_child]
         overlay: TemplateChild<gtk::Overlay>,
         #[template_child]
@@ -235,11 +236,13 @@ mod imp {
 
         fn map(&self) {
             self.parent_map();
+            self.update_media();
             self.update_animated_paintable_state();
         }
 
         fn unmap(&self) {
             self.parent_unmap();
+            self.hide_media();
             self.update_animated_paintable_state();
         }
     }
@@ -517,9 +520,16 @@ mod imp {
                 return;
             };
 
-            let max_dimensions = FrameDimensions::thumbnail_max_dimensions(1);
+            let max_dimensions = FrameDimensions {
+                width: 32,
+                height: 32,
+            };
             let dimensions =
                 original_dimensions.scale_to_fit(max_dimensions, gtk::ContentFit::ScaleDown);
+            let dimensions = FrameDimensions {
+                width: dimensions.width.max(1),
+                height: dimensions.height.max(1),
+            };
 
             let cache_key = self.cache_key.borrow().clone();
             spawn!(clone!(
@@ -602,7 +612,7 @@ mod imp {
                 .should_room_show_media_previews(&room)
             {
                 // Only load the media if it was not loaded before.
-                if self.state.get() == LoadingState::Initial {
+                if self.obj().is_mapped() && self.state.get() == LoadingState::Initial {
                     self.show_media();
                 }
             } else {
@@ -613,6 +623,7 @@ mod imp {
         /// Hide the media.
         #[template_callback]
         fn hide_media(&self) {
+            self.cancel_loading();
             self.set_state(LoadingState::Initial);
             self.set_media_child(None::<&gtk::Widget>);
             self.file.take();
@@ -625,6 +636,8 @@ mod imp {
                 return;
             };
 
+            self.cancel_loading();
+            let generation = self.generation.get();
             self.set_state(LoadingState::Loading);
 
             let activatable = matches!(
@@ -633,7 +646,7 @@ mod imp {
             );
             self.set_activatable(activatable);
 
-            spawn!(
+            let task = spawn!(
                 glib::Priority::LOW,
                 clone!(
                     #[weak(rename_to = imp)]
@@ -641,10 +654,10 @@ mod imp {
                     async move {
                         match &media_message {
                             VisualMediaMessage::Image(_) | VisualMediaMessage::Sticker(_) => {
-                                imp.build_image(&media_message).await;
+                                imp.build_image(&media_message, generation).await;
                             }
                             VisualMediaMessage::Video(_) => {
-                                imp.build_video(media_message).await;
+                                imp.build_video(media_message, generation).await;
                             }
                         }
 
@@ -652,45 +665,53 @@ mod imp {
                     }
                 )
             );
+            self.load_task.replace(Some(task));
         }
 
         /// Build the content for the image in the given media message.
-        async fn build_image(&self, media_message: &VisualMediaMessage) {
-            let Some(client) = self
-                .room
-                .upgrade()
-                .and_then(|room| room.session())
-                .map(|session| session.client())
-            else {
+        async fn build_image(&self, media_message: &VisualMediaMessage, generation: u64) {
+            let Some(session) = self.room.upgrade().and_then(|room| room.session()) else {
                 return;
             };
 
-            if self.state.get() != LoadingState::Loading {
+            if self.generation.get() != generation || self.state.get() != LoadingState::Loading {
                 // Something occurred after the task was spawned, cancel the task.
                 return;
             }
 
+            let client = session.client();
             let scale_factor = self.obj().scale_factor();
             let settings = ThumbnailSettings {
-                dimensions: FrameDimensions::thumbnail_max_dimensions(scale_factor),
+                dimensions: if self.compact.get() {
+                    MAX_COMPACT_DIMENSIONS.scale(scale_factor.try_into().unwrap_or(1))
+                } else {
+                    FrameDimensions::thumbnail_max_dimensions(scale_factor)
+                },
                 method: Method::Scale,
                 animated: true,
                 prefer_thumbnail: false,
             };
 
             let image = match media_message
-                .thumbnail(client, settings, ImageRequestPriority::Default)
+                .thumbnail(
+                    client,
+                    settings,
+                    ImageRequestPriority::Default,
+                    session.image_cache(),
+                )
                 .await
             {
                 Ok(Some(image)) => image,
                 Ok(None) => unreachable!("Image messages should always have a fallback"),
                 Err(error) => {
-                    self.set_error(&error.to_string());
+                    if self.generation.get() == generation {
+                        self.set_error(&error.to_string());
+                    }
                     return;
                 }
             };
 
-            if self.state.get() != LoadingState::Loading {
+            if self.generation.get() != generation || self.state.get() != LoadingState::Loading {
                 // Something occurred while the image was loading, cancel the task.
                 return;
             }
@@ -718,31 +739,29 @@ mod imp {
         }
 
         /// Build the content for the video in the given media message.
-        async fn build_video(&self, media_message: VisualMediaMessage) {
-            let Some(client) = self
-                .room
-                .upgrade()
-                .and_then(|room| room.session())
-                .map(|session| session.client())
-            else {
+        async fn build_video(&self, media_message: VisualMediaMessage, generation: u64) {
+            let Some(session) = self.room.upgrade().and_then(|room| room.session()) else {
                 return;
             };
 
-            if self.state.get() != LoadingState::Loading {
+            if self.generation.get() != generation || self.state.get() != LoadingState::Loading {
                 // Something occurred after the task was spawned, cancel the task.
                 return;
             }
 
+            let client = session.client();
             let file = match media_message.into_tmp_file(&client).await {
                 Ok(file) => file,
                 Err(error) => {
                     warn!("Could not retrieve video: {error}");
-                    self.set_error(&gettext("Could not retrieve media"));
+                    if self.generation.get() == generation {
+                        self.set_error(&gettext("Could not retrieve media"));
+                    }
                     return;
                 }
             };
 
-            if self.state.get() != LoadingState::Loading {
+            if self.generation.get() != generation || self.state.get() != LoadingState::Loading {
                 // Something occurred while the video was loading, cancel the task.
                 return;
             }
@@ -793,7 +812,16 @@ mod imp {
         }
 
         /// Reset the state of this widget.
+        fn cancel_loading(&self) {
+            self.generation.set(self.generation.get().wrapping_add(1));
+            if let Some(task) = self.load_task.take() {
+                task.abort();
+            }
+        }
+
         fn clear(&self) {
+            self.cancel_loading();
+            self.set_media_child(None::<&gtk::Widget>);
             self.file.take();
 
             if let Some(room) = self.room.upgrade() {
@@ -829,15 +857,14 @@ mod imp {
 
             let obj = self.obj();
 
-            let Some(window) = obj.root().and_downcast::<Window>() else {
+            let Some(history) = obj
+                .ancestor(crate::room_history::RoomHistory::static_type())
+                .and_downcast::<crate::room_history::RoomHistory>()
+            else {
                 return;
             };
-
             let event_id = self.cache_key.borrow().event_id.clone();
-
-            window
-                .session_view()
-                .show_media_viewer(&*self.obj(), &room, media_message, event_id);
+            history.request_media_viewer(obj.upcast_ref(), &room, media_message, event_id);
         }
     }
 }
@@ -851,12 +878,12 @@ glib::wrapper! {
 
 impl MessageVisualMedia {
     /// Create a new visual media message.
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         glib::Object::new()
     }
 
     /// Set the visual media message to display.
-    pub(crate) fn set_media_message(
+    pub fn set_media_message(
         &self,
         media_message: VisualMediaMessage,
         room: &Room,

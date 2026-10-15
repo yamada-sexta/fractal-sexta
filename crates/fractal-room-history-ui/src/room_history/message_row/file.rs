@@ -93,7 +93,7 @@ impl MessageFile {
     }
 
     /// Set the format of the content to present.
-    pub(crate) fn set_format(&self, format: ContentFormat) {
+    pub fn set_format(&self, format: ContentFormat) {
         self.set_compact(matches!(
             format,
             ContentFormat::Compact | ContentFormat::Ellipsized

@@ -159,7 +159,7 @@ impl MessageContent {
     }
 
     /// Update this widget to present the given `Event`.
-    pub(crate) fn update_for_event(&self, event: &Event) {
+    pub fn update_for_event(&self, event: &Event) {
         let detect_at_room = event.can_contain_at_room() && event.sender().can_notify_room();
 
         let format = self.format();
@@ -243,7 +243,7 @@ impl MessageContent {
     }
 
     /// Update this widget to present the given related event.
-    pub(crate) fn update_for_related_event(
+    pub fn update_for_related_event(
         &self,
         msgtype: &MessageType,
         message_event: &MessageEventSource,

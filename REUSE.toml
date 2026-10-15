@@ -12,7 +12,7 @@ path = [
     "po/LINGUAS",
     "po/POTFILES.in",
     "po/POTFILES.skip",
-    "src/**",
+    "crates/**",
 ]
 SPDX-FileCopyrightText = "Fractal Contributors"
 SPDX-License-Identifier = "GPL-3.0-or-later"

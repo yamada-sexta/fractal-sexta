@@ -153,7 +153,7 @@ impl ReactionGroup {
     }
 
     /// Update this group with the given reactions.
-    pub(crate) fn update(&self, new_reactions: &ReactionsMap) {
+    pub fn update(&self, new_reactions: &ReactionsMap) {
         self.imp().update(new_reactions);
     }
 }

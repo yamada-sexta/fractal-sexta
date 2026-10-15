@@ -150,7 +150,7 @@ impl CompletionRoomList {
     }
 
     /// Set the search term.
-    pub(crate) fn set_search_term(&self, term: Option<&str>) {
+    pub fn set_search_term(&self, term: Option<&str>) {
         self.imp().set_search_term(term);
     }
 }

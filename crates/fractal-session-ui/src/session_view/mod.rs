@@ -9,19 +9,18 @@ mod create_room_dialog;
 mod explore;
 mod invite;
 mod invite_request;
-mod media_viewer;
-mod room_details;
-mod room_history;
+pub use fractal_room_details_ui::room_details;
+pub use fractal_room_history_ui::room_history;
+pub use fractal_widgets::media_viewer;
 mod sidebar;
 
 use self::{
     content::Content, create_direct_chat_dialog::CreateDirectChatDialog,
     create_room_dialog::CreateRoomDialog, explore::Explore, invite::Invite,
-    invite_request::InviteRequest, media_viewer::MediaViewer, room_details::RoomDetails,
-    room_history::RoomHistory, sidebar::Sidebar,
+    invite_request::InviteRequest, media_viewer::MediaViewer, room_history::RoomHistory,
+    sidebar::Sidebar,
 };
 use crate::{
-    Window,
     components::{RoomPreviewDialog, UserProfileDialog},
     intent::SessionIntent,
     prelude::*,
@@ -43,6 +42,10 @@ mod imp {
     #[template(resource = "/org/gnome/Fractal/ui/session_view/mod.ui")]
     #[properties(wrapper_type = super::SessionView)]
     pub struct SessionView {
+        #[property(get, set)]
+        compact: std::cell::Cell<bool>,
+        #[property(get = Self::selected_room, nullable)]
+        selected_room: std::marker::PhantomData<Option<Room>>,
         #[template_child]
         stack: TemplateChild<gtk::Stack>,
         #[template_child]
@@ -202,6 +205,12 @@ mod imp {
         fn constructed(&self) {
             self.parent_constructed();
             let obj = self.obj();
+            self.content.room_history().connect_show_media(clone!(
+                #[weak(rename_to = imp)]
+                self,
+                move |source, room, message, event_id| imp
+                    .show_media_viewer(&source, &room, message, event_id)
+            ));
 
             self.content.connect_item_notify(clone!(
                 #[weak(rename_to = imp)]
@@ -219,6 +228,7 @@ mod imp {
 
                     // Withdraw the notifications of the newly selected item.
                     imp.withdraw_selected_item_notifications();
+                    imp.obj().notify_selected_room();
                 }
             ));
 
@@ -240,6 +250,7 @@ mod imp {
                         // When the window becomes active, withdraw the notifications
                         // of the selected item.
                         imp.withdraw_selected_item_notifications();
+                        imp.obj().notify_selected_room();
                     }
                 ));
                 imp.window_active_handler_id.replace(Some(handler_id));
@@ -493,7 +504,7 @@ mod imp {
         }
 
         /// Returns the ancestor window containing this widget.
-        fn parent_window(&self) -> Option<Window> {
+        fn parent_window(&self) -> Option<gtk::Window> {
             self.obj().root().and_downcast()
         }
 
@@ -610,34 +621,31 @@ impl SessionView {
     }
 
     /// The currently selected room, if any.
-    pub(crate) fn selected_room(&self) -> Option<Room> {
-        self.imp().selected_room()
-    }
 
     /// Select the given room.
-    pub(crate) fn select_room(&self, room: Room) {
+    pub fn select_room(&self, room: Room) {
         self.imp().select_room(room);
     }
 
     /// Select the room with the given identifier in this view, if it exists.
     ///
     /// Returns `true` if the room was found.
-    pub(crate) fn select_room_if_exists(&self, identifier: &RoomOrAliasId) -> bool {
+    pub fn select_room_if_exists(&self, identifier: &RoomOrAliasId) -> bool {
         self.imp().select_room_if_exists(identifier)
     }
 
     /// Select the given identity verification in this view.
-    pub(crate) fn select_identity_verification(&self, verification: IdentityVerification) {
+    pub fn select_identity_verification(&self, verification: IdentityVerification) {
         self.imp().select_identity_verification(verification);
     }
 
     /// Handle when the paste action was activated.
-    pub(crate) fn handle_paste_action(&self) {
+    pub fn handle_paste_action(&self) {
         self.imp().handle_paste_action();
     }
 
     /// Show the given media event in the media viewer.
-    pub(crate) fn show_media_viewer(
+    pub fn show_media_viewer(
         &self,
         source_widget: &impl IsA<gtk::Widget>,
         room: &Room,
@@ -649,12 +657,12 @@ impl SessionView {
     }
 
     /// Show the given `MatrixIdUri`.
-    pub(crate) fn show_matrix_uri(&self, uri: MatrixIdUri) {
+    pub fn show_matrix_uri(&self, uri: MatrixIdUri) {
         self.imp().show_matrix_uri(uri);
     }
 
     /// Process the given intent.
-    pub(crate) fn process_intent(&self, intent: SessionIntent) {
+    pub fn process_intent(&self, intent: SessionIntent) {
         self.imp().process_intent(intent);
     }
 }

@@ -433,7 +433,7 @@ impl Waveform {
     /// Set the waveform to display.
     ///
     /// The values must be normalized between 0 and 1.
-    pub(crate) fn set_waveform(&self, waveform: Vec<f32>) {
+    pub fn set_waveform(&self, waveform: Vec<f32>) {
         self.imp().set_waveform(waveform);
     }
 

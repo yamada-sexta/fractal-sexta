@@ -47,11 +47,11 @@ rust-tests:
     - meson setup _build
     - dbus-run-session --
       mutter --headless --wayland --no-x11 --virtual-monitor 1024x768 --
-      meson compile -C _build src/cargo-test
+      meson compile -C _build crates/fractal-app/src/cargo-test
   dependencies: []
   artifacts:
     reports:
-      junit: '_build/src/junit.xml'
+      junit: '_build/crates/fractal-app/src/junit.xml'
 
 # Build the docs and make sure that there are no errors.
 build-docs:
@@ -65,9 +65,9 @@ build-docs:
     - rustup toolchain install nightly-${RUST_NIGHTLY_VERSION} --profile minimal --allow-downgrade -c rust-docs
     # Build the docs.
     - meson setup -Dprofile=build-env _build
-    - meson compile -C _build src/cargo-doc
+    - meson compile -C _build crates/fractal-app/src/cargo-doc
     # Bundle the docs in an archive.
-    - tar --auto-compress --create --file "${CI_PROJECT_DIR}/${CI_PROJECT_NAME}-docs.tar.gz" --directory "_build/src/doc" .
+    - tar --auto-compress --create --file "${CI_PROJECT_DIR}/${CI_PROJECT_NAME}-docs.tar.gz" --directory "_build/crates/fractal-app/src/doc" .
   dependencies: []
   artifacts:
     paths:

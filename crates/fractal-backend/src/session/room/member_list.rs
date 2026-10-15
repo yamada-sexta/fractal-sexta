@@ -252,7 +252,7 @@ impl MemberList {
     }
 
     /// Reload this list.
-    pub(crate) fn reload(&self) {
+    pub fn reload(&self) {
         let imp = self.imp();
         imp.set_state(LoadingState::Initial);
 
@@ -266,14 +266,14 @@ impl MemberList {
     }
 
     /// Returns the member with the given ID, if it exists in the list.
-    pub(crate) fn get(&self, user_id: &UserId) -> Option<Member> {
+    pub fn get(&self, user_id: &UserId) -> Option<Member> {
         self.imp().members.borrow().get(user_id).cloned()
     }
 
     /// Returns the member with the given ID.
     ///
     /// Creates a new member first if there is no member with the given ID.
-    pub(crate) fn get_or_create(&self, user_id: OwnedUserId) -> Member {
+    pub fn get_or_create(&self, user_id: OwnedUserId) -> Member {
         let mut members = self.imp().members.borrow_mut();
         let mut was_member_added = false;
         let prev_len = members.len();
@@ -297,7 +297,7 @@ impl MemberList {
     }
 
     /// Get the list filtered by membership for the given kind.
-    pub(crate) fn membership_list(&self, kind: MembershipListKind) -> gio::ListModel {
+    pub fn membership_list(&self, kind: MembershipListKind) -> gio::ListModel {
         self.imp().membership_list(kind)
     }
 
@@ -356,7 +356,7 @@ impl MembershipListKind {
     }
 
     /// The tag to use for pages that present this kind.
-    pub(crate) const fn tag(self) -> &'static str {
+    pub const fn tag(self) -> &'static str {
         match self {
             Self::Join => "join",
             Self::Invite => "invite",
@@ -366,7 +366,7 @@ impl MembershipListKind {
     }
 
     /// The name of the icon that represents this kind.
-    pub(crate) const fn icon_name(self) -> &'static str {
+    pub const fn icon_name(self) -> &'static str {
         match self {
             Self::Join | Self::Knock => "users-symbolic",
             Self::Invite => "user-add-symbolic",

@@ -15,7 +15,7 @@ Issues and pull requests: <https://github.com/yamada-sexta/fractal-sexta>
 
 ### Prerequisites
 
-FractalSexta is written in Rust. You need Rust (minimum in `Cargo.toml` as `package.rust-version`)
+FractalSexta is written in Rust. You need Rust (minimum in `Cargo.toml` as `workspace.package.rust-version`)
 and Cargo. The [pre-commit hook](#pre-commit) needs nightly:
 
 ```sh
@@ -112,6 +112,35 @@ ninja -C _build
 sudo ninja -C _build install
 ```
 
+### Workspace
+
+Rust sources live under `crates/`. The `fractal` executable is in `fractal-app`;
+its templates remain there so installed GResource paths stay stable. The other
+members separate configuration, shared utilities, GTK models, media, Matrix
+backend, widgets, verification, accounts, room details, room history, and the
+session view. All members are private and share dependency versions and lints.
+
+Configure Meson first to generate application configuration. For direct Cargo
+checks in that build environment:
+
+```sh
+export FRACTAL_BUILD_DIR="$PWD/_build"
+export FRACTAL_VERSION=14.1.0
+cargo check --workspace --all-targets --locked
+cargo check -p fractal-room-history-ui --locked
+```
+
+A UI-only edit now invalidates that crate and its dependents instead of the entire
+application. Changes to shared backend interfaces still rebuild dependent UI
+crates. Full clean builds still compile the same external dependencies. Use
+`cargo build -p fractal --timings` in the build environment to inspect actual
+compilation costs; the split does not guarantee faster clean builds.
+
+The Matrix SDK already stores state, encryption keys, events, and downloaded
+media in SQLite. Decoded static thumbnails use a separate 32 MiB per-session
+weighted cache; logout clears it. Animated decoders are not retained in that
+cache. This is a pixel budget, not a total process or GPU memory limit.
+
 ## Pre-commit
 
 Contributions must be formatted. The build installs a pre-commit hook that runs the `hooks/checks`
@@ -121,7 +150,7 @@ Also run [Clippy](https://doc.rust-lang.org/stable/clippy/index.html) in a build
 shares the FractalSexta build cache:
 
 ```sh
-meson compile -C {BUILD_DIRECTORY} src/cargo-clippy
+meson compile -C {BUILD_DIRECTORY} crates/fractal-app/src/cargo-clippy
 ```
 
 Omit `-C {BUILD_DIRECTORY}` when already in the build directory.
@@ -168,7 +197,8 @@ DeepL.
 
 Open pull requests and fork bug reports on [GitHub](https://github.com/yamada-sexta/fractal-sexta).
 GitHub Actions builds the Flatpak, verifies the exported repository, and publishes passing main
-builds. Run source linting and tests locally; they are not GitHub publication gates.
+builds. The workflow also runs workspace tests with a virtual display before exporting the app.
+Run source linting locally before pushing.
 
 Run the repository checks locally with:
 

@@ -18,7 +18,7 @@ use tracing::{debug, error};
 mod reaction_group;
 mod reaction_list;
 
-pub(crate) use self::{
+pub use self::{
     reaction_group::{ReactionData, ReactionGroup},
     reaction_list::ReactionList,
 };
@@ -53,11 +53,11 @@ pub enum MessageState {
 
 /// The read receipt of a user.
 #[derive(Clone, Debug)]
-pub(crate) struct UserReadReceipt {
+pub struct UserReadReceipt {
     /// The ID of the user.
-    pub(crate) user_id: OwnedUserId,
+    pub user_id: OwnedUserId,
     /// The data of the receipt.
-    pub(crate) receipt: Receipt,
+    pub receipt: Receipt,
 }
 
 /// The state of the header of an event in the room history.
@@ -258,7 +258,7 @@ mod imp {
 
         /// The temporary ID of this event, if it has been sent with this
         /// session.
-        pub(crate) fn transaction_id(&self) -> Option<OwnedTransactionId> {
+        pub fn transaction_id(&self) -> Option<OwnedTransactionId> {
             self.item().transaction_id().map(ToOwned::to_owned)
         }
 
@@ -511,17 +511,17 @@ impl Event {
     }
 
     /// Update this event with the given SDK timeline item.
-    pub(crate) fn update_with(&self, item: EventTimelineItem) {
+    pub fn update_with(&self, item: EventTimelineItem) {
         self.imp().set_item(item);
     }
 
     /// The underlying SDK timeline item.
-    pub(crate) fn item(&self) -> Arc<EventTimelineItem> {
+    pub fn item(&self) -> Arc<EventTimelineItem> {
         self.imp().item()
     }
 
     /// The global permanent or temporary identifier of this event.
-    pub(crate) fn identifier(&self) -> TimelineEventItemId {
+    pub fn identifier(&self) -> TimelineEventItemId {
         self.imp().identifier()
     }
 
@@ -529,7 +529,7 @@ impl Event {
     ///
     /// The result can be different from comparing two [`TimelineEventItemId`]s
     /// because an event can have a transaction ID and an event ID.
-    pub(crate) fn matches_identifier(&self, identifier: &TimelineEventItemId) -> bool {
+    pub fn matches_identifier(&self, identifier: &TimelineEventItemId) -> bool {
         let item = self.item();
         match identifier {
             TimelineEventItemId::TransactionId(txn_id) => {
@@ -543,17 +543,17 @@ impl Event {
 
     /// The permanent global ID of this event, if it has been received from the
     /// server.
-    pub(crate) fn event_id(&self) -> Option<OwnedEventId> {
+    pub fn event_id(&self) -> Option<OwnedEventId> {
         self.imp().event_id()
     }
 
     /// The temporary ID of this event, if it has been sent with this session.
-    pub(crate) fn transaction_id(&self) -> Option<OwnedTransactionId> {
+    pub fn transaction_id(&self) -> Option<OwnedTransactionId> {
         self.imp().transaction_id()
     }
 
     /// The ID of the sender of this event.
-    pub(crate) fn sender_id(&self) -> OwnedUserId {
+    pub fn sender_id(&self) -> OwnedUserId {
         self.imp().sender_id()
     }
 
@@ -561,7 +561,7 @@ impl Event {
     ///
     /// This should only be called when the event's room members list is
     /// available, otherwise it will be created on every call.
-    pub(crate) fn sender(&self) -> Member {
+    pub fn sender(&self) -> Member {
         self.room()
             .get_or_create_members()
             .get_or_create(self.sender_id())
@@ -572,7 +572,7 @@ impl Event {
     /// A targeted user is only encountered with `m.room.member` events. This
     /// only returns `Some(_)` if the targeted user is different from the
     /// sender.
-    pub(crate) fn target_user_id(&self) -> Option<OwnedUserId> {
+    pub fn target_user_id(&self) -> Option<OwnedUserId> {
         let item = self.item();
         match item.content() {
             TimelineItemContent::MembershipChange(membership_change) => {
@@ -591,7 +591,7 @@ impl Event {
     ///
     /// This should only be called when the event's room members list is
     /// available, otherwise it will be created on every call.
-    pub(crate) fn target_user(&self) -> Option<Member> {
+    pub fn target_user(&self) -> Option<Member> {
         let target_user_id = self.target_user_id()?;
         Some(
             self.room()
@@ -602,25 +602,25 @@ impl Event {
 
     /// The timestamp of this event, as the number of milliseconds
     /// since Unix Epoch.
-    pub(crate) fn origin_server_ts(&self) -> MilliSecondsSinceUnixEpoch {
+    pub fn origin_server_ts(&self) -> MilliSecondsSinceUnixEpoch {
         self.imp().origin_server_ts()
     }
 
     /// The raw JSON source for this event, if it has been echoed back
     /// by the server.
-    pub(crate) fn raw(&self) -> Option<Raw<AnySyncTimelineEvent>> {
+    pub fn raw(&self) -> Option<Raw<AnySyncTimelineEvent>> {
         self.imp().raw()
     }
 
     /// The content of this event.
-    pub(crate) fn content(&self) -> TimelineItemContent {
+    pub fn content(&self) -> TimelineItemContent {
         self.item().content().clone()
     }
 
     /// The content of this event, if it is a message.
     ///
     /// This definition matches the `m.room.message` event type.
-    pub(crate) fn message(&self) -> Option<Message> {
+    pub fn message(&self) -> Option<Message> {
         match self.item().content() {
             TimelineItemContent::MsgLike(msg_like) => msg_like.as_message(),
             _ => None,
@@ -633,7 +633,7 @@ impl Event {
     ///
     /// - `m.room.message`
     /// - `m.sticker`
-    pub(crate) fn is_message_like(&self) -> bool {
+    pub fn is_message_like(&self) -> bool {
         match self.item().content() {
             TimelineItemContent::MsgLike(msg_like) => {
                 matches!(
@@ -646,7 +646,7 @@ impl Event {
     }
 
     /// Whether this is a call event.
-    pub(crate) fn is_call_event(&self) -> bool {
+    pub fn is_call_event(&self) -> bool {
         matches!(
             self.item().content(),
             TimelineItemContent::RtcNotification { .. }
@@ -654,7 +654,7 @@ impl Event {
     }
 
     /// Whether this is a state event.
-    pub(crate) fn is_state_event(&self) -> bool {
+    pub fn is_state_event(&self) -> bool {
         matches!(
             self.item().content(),
             TimelineItemContent::MembershipChange(_)
@@ -664,7 +664,7 @@ impl Event {
     }
 
     /// Whether this is a state event that can be grouped with others.
-    pub(crate) fn is_state_group_event(&self) -> bool {
+    pub fn is_state_group_event(&self) -> bool {
         match self.item().content() {
             TimelineItemContent::MembershipChange(_) | TimelineItemContent::ProfileChange(_) => {
                 true
@@ -682,7 +682,7 @@ impl Event {
     }
 
     /// Whether this is the `m.room.create` event of the room.
-    pub(crate) fn is_room_create(&self) -> bool {
+    pub fn is_room_create(&self) -> bool {
         match self.item().content() {
             TimelineItemContent::OtherState(other_state) => {
                 matches!(
@@ -696,7 +696,7 @@ impl Event {
 
     /// The membership change, if this is an `m.room.member` event that contains
     /// one.
-    pub(crate) fn membership_change(&self) -> Option<MembershipChange> {
+    pub fn membership_change(&self) -> Option<MembershipChange> {
         match self.item().content() {
             TimelineItemContent::MembershipChange(membership_change) => membership_change.change(),
             _ => None,
@@ -704,7 +704,7 @@ impl Event {
     }
 
     /// The media message of this event, if any.
-    pub(crate) fn media_message(&self) -> Option<MediaMessage> {
+    pub fn media_message(&self) -> Option<MediaMessage> {
         match self.item().content() {
             TimelineItemContent::MsgLike(msg_like) => match &msg_like.kind {
                 MsgLikeKind::Message(message) => MediaMessage::from_message(message.msgtype()),
@@ -718,17 +718,17 @@ impl Event {
     ///
     /// This means that either it does not have intentional mentions, or it has
     /// intentional mentions and `room` is set to `true`.
-    pub(crate) fn can_contain_at_room(&self) -> bool {
+    pub fn can_contain_at_room(&self) -> bool {
         self.item().content().can_contain_at_room()
     }
 
     /// Whether this event can show a header.
-    pub(crate) fn can_show_header(&self) -> bool {
+    pub fn can_show_header(&self) -> bool {
         self.item().content().can_show_header()
     }
 
     /// Get the ID of the event this event replies to, if any.
-    pub(crate) fn reply_to_id(&self) -> Option<OwnedEventId> {
+    pub fn reply_to_id(&self) -> Option<OwnedEventId> {
         match self.item().content() {
             TimelineItemContent::MsgLike(msg_like) => {
                 msg_like.in_reply_to.as_ref().map(|d| d.event_id.clone())
@@ -740,7 +740,7 @@ impl Event {
     /// Get the details of the event this event replies to, if any.
     ///
     /// Returns `None(_)` if this event is not a reply.
-    pub(crate) fn reply_to_event_content(&self) -> Option<TimelineDetails<Box<EmbeddedEvent>>> {
+    pub fn reply_to_event_content(&self) -> Option<TimelineDetails<Box<EmbeddedEvent>>> {
         match self.item().content() {
             TimelineItemContent::MsgLike(msg_like) => {
                 msg_like.in_reply_to.as_ref().map(|d| d.event.clone())
@@ -752,7 +752,7 @@ impl Event {
     /// Fetch missing details for this event.
     ///
     /// This is a no-op if called for a local event.
-    pub(crate) async fn fetch_missing_details(&self) -> Result<(), TimelineError> {
+    pub async fn fetch_missing_details(&self) -> Result<(), TimelineError> {
         let Some(event_id) = self.event_id() else {
             return Ok(());
         };
@@ -764,7 +764,7 @@ impl Event {
     }
 
     /// Whether this event can be replied to.
-    pub(crate) fn can_be_replied_to(&self) -> bool {
+    pub fn can_be_replied_to(&self) -> bool {
         let item = self.item();
 
         // We only allow to reply to messages (but not stickers).
@@ -782,7 +782,7 @@ impl Event {
     }
 
     /// Whether this event can be reacted to.
-    pub(crate) fn can_be_reacted_to(&self) -> bool {
+    pub fn can_be_reacted_to(&self) -> bool {
         // We only allow to react to messages (but not stickers).
         if !self.item().content().is_message() {
             return false;
@@ -801,7 +801,7 @@ impl Event {
     ///
     /// This uses the raw JSON to be able to redact even events that failed to
     /// deserialize.
-    pub(crate) fn can_be_redacted(&self) -> bool {
+    pub fn can_be_redacted(&self) -> bool {
         let Some(raw) = self.raw() else {
             // Events without raw JSON are already redacted events, and events that are not
             // sent yet, we can ignore them.
@@ -843,7 +843,7 @@ impl Event {
     /// show in the timeline.
     ///
     /// [MSC2654]: https://github.com/matrix-org/matrix-spec-proposals/pull/2654
-    pub(crate) fn counts_as_unread(&self) -> bool {
+    pub fn counts_as_unread(&self) -> bool {
         let item = self.item();
         item.is_remote_event() && item.content().counts_as_unread()
     }
@@ -853,7 +853,7 @@ impl Event {
     /// This includes content that counts as unread, plus membership changes for
     /// our own user towards joining a room, so that freshly joined rooms are at
     /// the top of the list.
-    pub(crate) fn counts_as_activity(&self, own_user_id: &UserId) -> bool {
+    pub fn counts_as_activity(&self, own_user_id: &UserId) -> bool {
         let item = self.item();
         item.is_remote_event() && item.content().counts_as_activity(own_user_id)
     }
@@ -861,15 +861,12 @@ impl Event {
     /// The `matrix.to` URI representation for this event.
     ///
     /// Returns `None` if we don't have the ID of the event.
-    pub(crate) async fn matrix_to_uri(&self) -> Option<MatrixToUri> {
+    pub async fn matrix_to_uri(&self) -> Option<MatrixToUri> {
         Some(self.room().matrix_to_event_uri(self.event_id()?).await)
     }
 
     /// Listen to the signal emitted when the SDK item changed.
-    pub(crate) fn connect_item_changed<F: Fn(&Self) + 'static>(
-        &self,
-        f: F,
-    ) -> glib::SignalHandlerId {
+    pub fn connect_item_changed<F: Fn(&Self) + 'static>(&self, f: F) -> glib::SignalHandlerId {
         self.connect_closure(
             "item-changed",
             true,

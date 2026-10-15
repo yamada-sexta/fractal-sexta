@@ -4,11 +4,11 @@ use gtk::{glib, glib::clone};
 use ruma::api::client::discovery::get_authorization_server_metadata::v1::{
     AccountManagementActionData, AuthorizationServerMetadata, DeviceDeleteData,
 };
-use tracing::error;
+use tracing::{debug, error};
 
 use crate::{
     account_settings::AccountSettings,
-    components::{ActionButton, ActionState, AuthError, LoadingButtonRow},
+    components::{ActionButton, ActionState, AuthDialog, AuthError, LoadingButtonRow},
     gettext_f,
     prelude::*,
     session::UserSession,
@@ -233,7 +233,7 @@ mod imp {
 
             self.loading_disconnect_button.set_is_loading(true);
 
-            match user_session.delete(&*obj).await {
+            match delete_user_session(&user_session, &*obj).await {
                 Ok(()) => {
                     let _ = obj.activate_action("account-settings.reload-user-sessions", None);
                 }
@@ -297,5 +297,46 @@ impl UserSessionSubpage {
             .property("user-session", user_session)
             .property("account-settings", account_settings)
             .build()
+    }
+}
+
+/// Deletes the `UserSession`.
+///
+/// Requires a widget because it might show a dialog for UIAA.
+async fn delete_user_session(
+    user_session: &UserSession,
+    parent: &impl IsA<gtk::Widget>,
+) -> Result<(), AuthError> {
+    let Some(session) = user_session.session() else {
+        return Err(AuthError::Unknown);
+    };
+    let device_id = user_session.device_id().clone();
+
+    let dialog = AuthDialog::new(&session);
+
+    let res = dialog
+        .authenticate(parent, move |client, auth| {
+            let device_id = device_id.clone();
+            async move {
+                client
+                    .delete_devices(&[device_id], auth)
+                    .await
+                    .map_err(Into::into)
+            }
+        })
+        .await;
+
+    match res {
+        Ok(_) => Ok(()),
+        Err(error) => {
+            let device_id = user_session.device_id();
+
+            if matches!(error, AuthError::UserCancelled) {
+                debug!("Deletion of user session {device_id} cancelled by user");
+            } else {
+                error!("Could not delete user session {device_id}: {error}");
+            }
+            Err(error)
+        }
     }
 }

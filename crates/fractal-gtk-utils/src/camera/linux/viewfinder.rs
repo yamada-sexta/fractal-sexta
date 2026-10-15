@@ -10,9 +10,7 @@ use tokio::task::AbortHandle;
 use tracing::{debug, error};
 
 use crate::{
-    components::camera::{
-        CameraViewfinder, CameraViewfinderExt, CameraViewfinderImpl, CameraViewfinderState,
-    },
+    camera::{CameraViewfinder, CameraViewfinderExt, CameraViewfinderImpl, CameraViewfinderState},
     spawn_tokio,
 };
 

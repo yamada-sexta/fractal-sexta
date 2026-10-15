@@ -1,0 +1,32 @@
+[package]
+name = "fractal-room-history-ui"
+version.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+adw.workspace = true
+as_variant.workspace = true
+fractal-backend = { path = "../fractal-backend" }
+fractal-config = { path = "../fractal-config" }
+fractal-core = { path = "../fractal-core" }
+fractal-gtk-utils = { path = "../fractal-gtk-utils" }
+fractal-room-details-ui = { path = "../fractal-room-details-ui" }
+fractal-widgets = { path = "../fractal-widgets" }
+futures-util.workspace = true
+geo-uri.workspace = true
+gettext-rs.workspace = true
+gtk.workspace = true
+matrix-sdk.workspace = true
+matrix-sdk-ui.workspace = true
+mime.workspace = true
+pulldown-cmark.workspace = true
+ruma.workspace = true
+secular.workspace = true
+sourceview.workspace = true
+tracing.workspace = true
+
+[lints]
+workspace = true

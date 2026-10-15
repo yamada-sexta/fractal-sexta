@@ -32,7 +32,7 @@ pub enum SidebarSectionName {
 
 impl SidebarSectionName {
     /// Convert the given `RoomCategory` to a `SidebarSectionName`, if possible.
-    pub(crate) fn from_room_category(category: RoomCategory) -> Option<Self> {
+    pub fn from_room_category(category: RoomCategory) -> Option<Self> {
         let name = match category {
             RoomCategory::Knocked => Self::InviteRequest,
             RoomCategory::Invited => Self::Invited,
@@ -47,7 +47,7 @@ impl SidebarSectionName {
     }
 
     /// Convert this `SidebarSectionName` to a `RoomCategory`, if possible.
-    pub(crate) fn into_room_category(self) -> Option<RoomCategory> {
+    pub fn into_room_category(self) -> Option<RoomCategory> {
         let category = match self {
             Self::VerificationRequest => return None,
             Self::InviteRequest => RoomCategory::Knocked,
@@ -63,7 +63,7 @@ impl SidebarSectionName {
 
     /// Convert this `SidebarSectionName` to a `TargetRoomCategory`, if
     /// possible.
-    pub(crate) fn into_target_room_category(self) -> Option<TargetRoomCategory> {
+    pub fn into_target_room_category(self) -> Option<TargetRoomCategory> {
         let category = match self {
             Self::VerificationRequest | Self::InviteRequest | Self::Invited => return None,
             Self::Favorite => TargetRoomCategory::Favorite,

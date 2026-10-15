@@ -1,6 +1,6 @@
 use gettextrs::{gettext, ngettext};
 
-use crate::utils::freplace;
+use crate::freplace;
 
 /// Like `gettext`, but replaces named variables with the given dictionary.
 ///

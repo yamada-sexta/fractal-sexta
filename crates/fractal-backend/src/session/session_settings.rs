@@ -7,14 +7,14 @@ use serde::{Deserialize, Serialize};
 use tracing::info;
 
 use super::SidebarSectionName;
-use crate::{Application, session_list::SessionListSettings};
+use crate::session_list::SessionListSettings;
 
 /// The current version of the stored session settings.
 const CURRENT_VERSION: u8 = 1;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[allow(clippy::struct_excessive_bools)]
-pub(crate) struct StoredSessionSettings {
+pub struct StoredSessionSettings {
     /// The version of the stored settings.
     #[serde(default)]
     pub(super) version: u8,
@@ -92,6 +92,7 @@ mod imp {
         session_id: OnceCell<String>,
         /// The stored settings.
         pub(super) stored_settings: RefCell<StoredSessionSettings>,
+        pub(super) owner: glib::WeakRef<SessionListSettings>,
         /// Whether notifications are enabled for this session.
         #[property(get = Self::notifications_enabled, set = Self::set_notifications_enabled, explicit_notify, default = true)]
         notifications_enabled: PhantomData<bool>,
@@ -125,7 +126,7 @@ mod imp {
             }
 
             self.stored_settings.borrow_mut().notifications_enabled = enabled;
-            session_list_settings().save();
+            self.obj().owner().save();
             self.obj().notify_notifications_enabled();
         }
 
@@ -143,7 +144,7 @@ mod imp {
             self.stored_settings
                 .borrow_mut()
                 .public_read_receipts_enabled = enabled;
-            session_list_settings().save();
+            self.obj().owner().save();
             self.obj().notify_public_read_receipts_enabled();
         }
 
@@ -159,13 +160,13 @@ mod imp {
             }
 
             self.stored_settings.borrow_mut().typing_enabled = enabled;
-            session_list_settings().save();
+            self.obj().owner().save();
             self.obj().notify_typing_enabled();
         }
 
         /// Apply the migration of the stored settings from version 0 to version
         /// 1.
-        pub(crate) fn apply_version_1_migration(&self) {
+        pub fn apply_version_1_migration(&self) {
             {
                 let mut stored_settings = self.stored_settings.borrow_mut();
 
@@ -183,7 +184,7 @@ mod imp {
                 stored_settings.version = 1;
             }
 
-            session_list_settings().save();
+            self.obj().owner().save();
         }
     }
 }
@@ -194,8 +195,18 @@ glib::wrapper! {
 }
 
 impl SessionSettings {
+    pub fn set_owner(&self, owner: &SessionListSettings) {
+        self.imp().owner.set(Some(owner));
+    }
+    fn owner(&self) -> SessionListSettings {
+        self.imp()
+            .owner
+            .upgrade()
+            .expect("session settings owner is alive")
+    }
+
     /// Create a new `SessionSettings` for the given session ID.
-    pub(crate) fn new(session_id: &str) -> Self {
+    pub fn new(session_id: &str) -> Self {
         glib::Object::builder()
             .property("session-id", session_id)
             .build()
@@ -203,29 +214,29 @@ impl SessionSettings {
 
     /// Restore existing `SessionSettings` with the given session ID and stored
     /// settings.
-    pub(crate) fn restore(session_id: &str, stored_settings: StoredSessionSettings) -> Self {
+    pub fn restore(session_id: &str, stored_settings: StoredSessionSettings) -> Self {
         let obj = Self::new(session_id);
         *obj.imp().stored_settings.borrow_mut() = stored_settings;
         obj
     }
 
     /// The stored settings.
-    pub(crate) fn stored_settings(&self) -> StoredSessionSettings {
+    pub fn stored_settings(&self) -> StoredSessionSettings {
         self.imp().stored_settings.borrow().clone()
     }
 
     /// Apply the migration of the stored settings from version 0 to version 1.
-    pub(crate) fn apply_version_1_migration(&self) {
+    pub fn apply_version_1_migration(&self) {
         self.imp().apply_version_1_migration();
     }
 
     /// Delete the settings from the application settings.
-    pub(crate) fn delete(&self) {
-        session_list_settings().remove(&self.session_id());
+    pub fn delete(&self) {
+        self.owner().remove(&self.session_id());
     }
 
     /// Custom servers to explore.
-    pub(crate) fn explore_custom_servers(&self) -> IndexSet<OwnedServerName> {
+    pub fn explore_custom_servers(&self) -> IndexSet<OwnedServerName> {
         self.imp()
             .stored_settings
             .borrow()
@@ -234,7 +245,7 @@ impl SessionSettings {
     }
 
     /// Set the custom servers to explore.
-    pub(crate) fn set_explore_custom_servers(&self, servers: IndexSet<OwnedServerName>) {
+    pub fn set_explore_custom_servers(&self, servers: IndexSet<OwnedServerName>) {
         if self.explore_custom_servers() == servers {
             return;
         }
@@ -243,11 +254,11 @@ impl SessionSettings {
             .stored_settings
             .borrow_mut()
             .explore_custom_servers = servers;
-        session_list_settings().save();
+        self.owner().save();
     }
 
     /// Whether the section with the given name is expanded.
-    pub(crate) fn is_section_expanded(&self, section_name: SidebarSectionName) -> bool {
+    pub fn is_section_expanded(&self, section_name: SidebarSectionName) -> bool {
         self.imp()
             .stored_settings
             .borrow()
@@ -256,32 +267,28 @@ impl SessionSettings {
     }
 
     /// Set whether the section with the given name is expanded.
-    pub(crate) fn set_section_expanded(&self, section_name: SidebarSectionName, expanded: bool) {
+    pub fn set_section_expanded(&self, section_name: SidebarSectionName, expanded: bool) {
         self.imp()
             .stored_settings
             .borrow_mut()
             .sections_expanded
             .set_section_expanded(section_name, expanded);
-        session_list_settings().save();
+        self.owner().save();
     }
 }
 
 /// The sections that are expanded.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
-pub(crate) struct SectionsExpanded(BTreeSet<SidebarSectionName>);
+pub struct SectionsExpanded(BTreeSet<SidebarSectionName>);
 
 impl SectionsExpanded {
     /// Whether the section with the given name is expanded.
-    pub(crate) fn is_section_expanded(&self, section_name: SidebarSectionName) -> bool {
+    pub fn is_section_expanded(&self, section_name: SidebarSectionName) -> bool {
         self.0.contains(&section_name)
     }
 
     /// Set whether the section with the given name is expanded.
-    pub(crate) fn set_section_expanded(
-        &mut self,
-        section_name: SidebarSectionName,
-        expanded: bool,
-    ) {
+    pub fn set_section_expanded(&mut self, section_name: SidebarSectionName, expanded: bool) {
         if expanded {
             self.0.insert(section_name);
         } else {
@@ -337,9 +344,4 @@ impl From<MediaPreviewsGlobalSetting> for MediaPreviews {
             MediaPreviewsGlobalSetting::None => Self::Off,
         }
     }
-}
-
-/// The session list settings of the application.
-fn session_list_settings() -> SessionListSettings {
-    Application::default().session_list().settings()
 }

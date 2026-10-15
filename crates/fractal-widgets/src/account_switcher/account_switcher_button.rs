@@ -2,7 +2,6 @@ use gtk::{glib, glib::clone, prelude::*, subclass::prelude::*};
 
 use super::AccountSwitcherPopover;
 use crate::{
-    Window,
     components::Avatar,
     session_list::SessionInfo,
     utils::{BoundObjectWeakRef, TemplateCallbacks},
@@ -95,12 +94,14 @@ mod imp {
             let obj = self.obj();
 
             if obj.is_active() {
-                let Some(window) = obj.root().and_downcast::<Window>() else {
+                let Some(window) = obj
+                    .root()
+                    .filter(|root| root.find_property("account-switcher").is_some())
+                else {
                     return;
                 };
-
-                let popover = window.account_switcher();
-                self.set_popover(Some(popover));
+                let popover = window.property::<AccountSwitcherPopover>("account-switcher");
+                self.set_popover(Some(&popover));
 
                 popover.popup();
             } else if let Some(popover) = self.popover.obj() {

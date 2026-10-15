@@ -34,7 +34,7 @@ if not build_env_only
         input: blp_files,
         output: ui_files,
         command: [
-            '../build-aux/compile-blueprints.sh',
+            meson.project_source_root() / 'build-aux/compile-blueprints.sh',
             blueprint_compiler.full_path(),
             '@OUTDIR@',
             '@CURRENT_SOURCE_DIR@',
@@ -74,20 +74,14 @@ global_conf.set('PROFILE', profile)
 global_conf.set_quoted('VERSION', full_version)
 global_conf.set_quoted('BUILD_DIR', meson.project_build_root())
 config = configure_file(
-    input: 'config.rs.in',
-    output: 'config.rs',
+    input: '../../fractal-config/src/config.rs.in',
+    output: 'fractal-config.rs',
     configuration: global_conf,
 )
-run_command(
-    'cp',
-    config,
-    meson.project_source_root() / 'src' / 'config.rs',
-    check: true,
-)
-
 # Cargo settings
 cargo_options = ['--manifest-path', meson.project_source_root() / 'Cargo.toml']
-cargo_build_options = cargo_options
+cargo_env += ['FRACTAL_BUILD_DIR=' + meson.project_build_root(), 'FRACTAL_VERSION=' + full_version]
+cargo_build_options = cargo_options + ['--package=fractal']
 
 if profile == 'Devel'
     rust_target = 'debug'
@@ -129,7 +123,21 @@ if not build_env_only
             cargo,
             'clippy',
             cargo_options,
+            '--workspace',
+            '--all-targets',
         ],
+    )
+
+    # CI uses Cargo's test runner with the same release artifacts as the app.
+    ci_test_options = cargo_options + ['--workspace', '--locked']
+    if profile != 'Devel'
+        ci_test_options += ['--release']
+    endif
+    run_target(
+        'cargo-test-ci',
+        depends: [resources, ui_resources],
+        env: cargo_env,
+        command: [cargo, 'test', ci_test_options],
     )
 
     # Run Rust tests with cargo-nextest
@@ -146,6 +154,7 @@ if not build_env_only
             'nextest',
             'run',
             cargo_options,
+            '--workspace',
             '--config-file',
             nextest_config.full_path(),
             '&&',
@@ -187,7 +196,7 @@ rustdoc_flags = ' '.join(
     '-Dwarnings',
 )
 cargo_doc_env = ['RUSTDOCFLAGS=' + rustdoc_flags]
-cargo_doc_options = ['--package=fractal', '--no-deps', '-Zrustdoc-map']
+cargo_doc_options = ['--workspace', '--no-deps', '-Zrustdoc-map']
 
 custom_target(
     'cargo-doc',

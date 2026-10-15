@@ -205,7 +205,7 @@ impl VerificationList {
     }
 
     /// Initialize this list to listen to new verification requests.
-    pub(crate) fn init(&self) {
+    pub fn init(&self) {
         let Some(session) = self.session() else {
             return;
         };
@@ -287,7 +287,7 @@ impl VerificationList {
     }
 
     /// Remove the verification with the given key.
-    pub(crate) fn remove(&self, key: &VerificationKey) {
+    pub fn remove(&self, key: &VerificationKey) {
         let Some((pos, ..)) = self.imp().list.borrow_mut().shift_remove_full(key) else {
             return;
         };
@@ -300,12 +300,12 @@ impl VerificationList {
     }
 
     /// Get the verification with the given key.
-    pub(crate) fn get(&self, key: &VerificationKey) -> Option<IdentityVerification> {
+    pub fn get(&self, key: &VerificationKey) -> Option<IdentityVerification> {
         self.imp().list.borrow().get(key).cloned()
     }
 
     // Returns the ongoing session verification, if any.
-    pub(crate) fn ongoing_session_verification(&self) -> Option<IdentityVerification> {
+    pub fn ongoing_session_verification(&self) -> Option<IdentityVerification> {
         let list = self.imp().list.borrow();
         list.values()
             .find(|v| v.is_self_verification() && !v.is_finished())
@@ -313,10 +313,7 @@ impl VerificationList {
     }
 
     // Returns the ongoing verification in the given room, if any.
-    pub(crate) fn ongoing_room_verification(
-        &self,
-        room_id: &RoomId,
-    ) -> Option<IdentityVerification> {
+    pub fn ongoing_room_verification(&self, room_id: &RoomId) -> Option<IdentityVerification> {
         let list = self.imp().list.borrow();
         list.values()
             .find(|v| v.room().is_some_and(|room| room.room_id() == room_id) && !v.is_finished())
@@ -327,7 +324,7 @@ impl VerificationList {
     ///
     /// If `user` is `None`, a new session verification is started for our own
     /// user and sent to other devices.
-    pub(crate) async fn create(&self, user: Option<User>) -> Result<IdentityVerification, ()> {
+    pub async fn create(&self, user: Option<User>) -> Result<IdentityVerification, ()> {
         let Some(session) = self.session() else {
             error!("Could not create identity verification: failed to upgrade session");
             return Err(());

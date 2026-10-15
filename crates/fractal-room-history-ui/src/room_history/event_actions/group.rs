@@ -16,7 +16,7 @@ use crate::{
 };
 
 /// Trait to help a row that presents an `Event` to provide the proper actions.
-pub(crate) trait EventActionsGroup: ObjectSubclass {
+pub trait EventActionsGroup: ObjectSubclass {
     /// The current event of the row, if any.
     fn event(&self) -> Option<Event>;
 

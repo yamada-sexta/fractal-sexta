@@ -390,7 +390,7 @@ impl MessageText {
     /// Display the given text with possible markup.
     ///
     /// It will detect if it should display the body or the formatted body.
-    pub(crate) fn with_markup(
+    pub fn with_markup(
         &self,
         formatted: Option<FormattedBody>,
         body: String,
@@ -405,7 +405,7 @@ impl MessageText {
     /// Display the given emote for `sender`.
     ///
     /// It will detect if it should display the body or the formatted body.
-    pub(crate) fn with_emote(
+    pub fn with_emote(
         &self,
         formatted: Option<FormattedBody>,
         body: String,

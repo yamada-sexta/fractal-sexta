@@ -1,0 +1,30 @@
+[package]
+name = "fractal-session-ui"
+version.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+adw.workspace = true
+fractal-accounts-ui = { path = "../fractal-accounts-ui" }
+fractal-backend = { path = "../fractal-backend" }
+fractal-config = { path = "../fractal-config" }
+fractal-core = { path = "../fractal-core" }
+fractal-gtk-utils = { path = "../fractal-gtk-utils" }
+fractal-room-details-ui = { path = "../fractal-room-details-ui" }
+fractal-room-history-ui = { path = "../fractal-room-history-ui" }
+fractal-verification-ui = { path = "../fractal-verification-ui" }
+fractal-widgets = { path = "../fractal-widgets" }
+gettext-rs.workspace = true
+gtk.workspace = true
+indexmap.workspace = true
+matrix-sdk.workspace = true
+ruma.workspace = true
+secular.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+[lints]
+workspace = true

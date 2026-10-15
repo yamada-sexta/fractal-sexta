@@ -203,17 +203,12 @@ impl ExploreSearch {
     }
 
     /// Whether the list is empty.
-    pub(crate) fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.imp().is_empty()
     }
 
     /// Search the given term on the given server.
-    pub(crate) fn search(
-        &self,
-        session: &Session,
-        search_term: Option<String>,
-        server: &ExploreServer,
-    ) {
+    pub fn search(&self, session: &Session, search_term: Option<String>, server: &ExploreServer) {
         let session_weak = glib::WeakRef::new();
         session_weak.set(Some(session));
 
@@ -227,7 +222,7 @@ impl ExploreSearch {
     }
 
     /// Load more rooms.
-    pub(crate) fn load_more(&self) {
+    pub fn load_more(&self) {
         let imp = self.imp();
 
         if imp.can_load_more() {

@@ -179,7 +179,7 @@ impl WaveformPaintable {
     /// The values must be normalized between 0 and 1.
     ///
     /// Returns whether the waveform changed.
-    pub(crate) fn set_waveform(&self, waveform: Vec<f32>) -> bool {
+    pub fn set_waveform(&self, waveform: Vec<f32>) -> bool {
         self.imp().set_waveform(waveform)
     }
 }

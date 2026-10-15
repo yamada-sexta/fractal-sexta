@@ -253,7 +253,7 @@ impl OverlappingAvatars {
     }
 
     /// Bind a `GListModel` to this list.
-    pub(crate) fn bind_model<P: Fn(&glib::Object) -> AvatarData + 'static>(
+    pub fn bind_model<P: Fn(&glib::Object) -> AvatarData + 'static>(
         &self,
         model: Option<&impl IsA<gio::ListModel>>,
         extract_avatar_data_fn: P,

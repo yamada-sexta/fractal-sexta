@@ -121,14 +121,14 @@ impl ReactionList {
     }
 
     /// Update the reaction list with the given reactions.
-    pub(crate) fn update(&self, new_reactions: &ReactionsByKeyBySender) {
+    pub fn update(&self, new_reactions: &ReactionsByKeyBySender) {
         self.imp().update(new_reactions);
     }
 
     /// Get a reaction group by its key.
     ///
     /// Returns `None` if no action group was found with this key.
-    pub(crate) fn reaction_group_by_key(&self, key: &str) -> Option<ReactionGroup> {
+    pub fn reaction_group_by_key(&self, key: &str) -> Option<ReactionGroup> {
         self.imp().reaction_group_by_key(key)
     }
 }

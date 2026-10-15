@@ -17,7 +17,7 @@ pub enum SidebarIconItemType {
 
 impl SidebarIconItemType {
     /// The name of the icon for this item type.
-    pub(crate) fn icon_name(self) -> &'static str {
+    pub fn icon_name(self) -> &'static str {
         match self {
             Self::Explore => "explore-symbolic",
             Self::Forget => "user-trash-symbolic",
@@ -91,7 +91,7 @@ impl SidebarIconItem {
 
     /// Whether this item should be shown for the drag-n-drop of a room with the
     /// given category.
-    pub(crate) fn visible_for_room_category(&self, source_category: Option<RoomCategory>) -> bool {
+    pub fn visible_for_room_category(&self, source_category: Option<RoomCategory>) -> bool {
         match self.item_type() {
             SidebarIconItemType::Explore => true,
             SidebarIconItemType::Forget => source_category == Some(RoomCategory::Left),

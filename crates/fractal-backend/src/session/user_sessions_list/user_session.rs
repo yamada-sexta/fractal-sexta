@@ -7,15 +7,10 @@ use gtk::{
 };
 use matrix_sdk::{HttpError, encryption::identities::Device as CryptoDevice};
 use ruma::{DeviceId, OwnedDeviceId, api::client::device::Device as DeviceData};
-use tracing::{debug, error};
+use tracing::error;
 
 use crate::{
-    Application,
-    components::{AuthDialog, AuthError},
-    prelude::*,
-    session::Session,
-    spawn_tokio,
-    system_settings::ClockFormat,
+    prelude::*, session::Session, spawn_tokio, system_settings::ClockFormat,
     utils::matrix::timestamp_to_date,
 };
 
@@ -138,7 +133,7 @@ mod imp {
             self.parent_constructed();
 
             let obj = self.obj();
-            let system_settings = Application::default().system_settings();
+            let system_settings = crate::system_settings::SystemSettings::shared();
             let system_settings_handler = system_settings.connect_clock_format_notify(clone!(
                 #[weak]
                 obj,
@@ -152,7 +147,7 @@ mod imp {
 
         fn dispose(&self) {
             if let Some(handler) = self.system_settings_handler.take() {
-                Application::default().system_settings().disconnect(handler);
+                crate::system_settings::SystemSettings::shared().disconnect(handler);
             }
         }
 
@@ -284,7 +279,7 @@ mod imp {
         pub(super) fn last_seen_datetime_string(&self) -> Option<String> {
             let datetime = self.last_seen_datetime()?;
 
-            let clock_format = Application::default().system_settings().clock_format();
+            let clock_format = crate::system_settings::SystemSettings::shared().clock_format();
             let use_24 = clock_format == ClockFormat::TwentyFourHours;
 
             // This was ported from Nautilus and simplified for our use case.
@@ -431,7 +426,7 @@ impl UserSession {
     }
 
     /// The ID of this user session.
-    pub(crate) fn device_id(&self) -> &OwnedDeviceId {
+    pub fn device_id(&self) -> &OwnedDeviceId {
         self.imp().device_id()
     }
 
@@ -441,7 +436,7 @@ impl UserSession {
     }
 
     /// Renames the user session.
-    pub(crate) async fn rename(&self, display_name: String) -> Result<(), HttpError> {
+    pub async fn rename(&self, display_name: String) -> Result<(), HttpError> {
         let Some(client) = self.session().map(|s| s.client()) else {
             return Ok(());
         };
@@ -463,44 +458,6 @@ impl UserSession {
             Err(error) => {
                 let device_id = self.device_id();
                 error!("Could not rename user session {device_id}: {error}");
-                Err(error)
-            }
-        }
-    }
-
-    /// Deletes the `UserSession`.
-    ///
-    /// Requires a widget because it might show a dialog for UIAA.
-    pub(crate) async fn delete(&self, parent: &impl IsA<gtk::Widget>) -> Result<(), AuthError> {
-        let Some(session) = self.session() else {
-            return Err(AuthError::Unknown);
-        };
-        let device_id = self.imp().device_id().clone();
-
-        let dialog = AuthDialog::new(&session);
-
-        let res = dialog
-            .authenticate(parent, move |client, auth| {
-                let device_id = device_id.clone();
-                async move {
-                    client
-                        .delete_devices(&[device_id], auth)
-                        .await
-                        .map_err(Into::into)
-                }
-            })
-            .await;
-
-        match res {
-            Ok(_) => Ok(()),
-            Err(error) => {
-                let device_id = self.imp().device_id();
-
-                if matches!(error, AuthError::UserCancelled) {
-                    debug!("Deletion of user session {device_id} cancelled by user");
-                } else {
-                    error!("Could not delete user session {device_id}: {error}");
-                }
                 Err(error)
             }
         }

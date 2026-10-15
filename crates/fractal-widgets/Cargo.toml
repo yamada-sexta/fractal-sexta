@@ -1,0 +1,29 @@
+[package]
+name = "fractal-widgets"
+version.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+adw.workspace = true
+fractal-backend = { path = "../fractal-backend" }
+fractal-config = { path = "../fractal-config" }
+fractal-core = { path = "../fractal-core" }
+fractal-gtk-utils = { path = "../fractal-gtk-utils" }
+fractal-media = { path = "../fractal-media" }
+geo-uri.workspace = true
+gettext-rs.workspace = true
+gst.workspace = true
+gst_play.workspace = true
+gtk.workspace = true
+matrix-sdk.workspace = true
+ruma.workspace = true
+shumate.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+[lints]
+workspace = true

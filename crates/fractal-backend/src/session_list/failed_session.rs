@@ -62,7 +62,7 @@ glib::wrapper! {
 
 impl FailedSession {
     /// Constructs a new `FailedSession` with the given info and error.
-    pub(crate) fn new(stored_session: &StoredSession, error: ClientSetupError) -> Self {
+    pub fn new(stored_session: &StoredSession, error: ClientSetupError) -> Self {
         let obj = glib::Object::builder::<Self>()
             .property("info", stored_session)
             .build();
@@ -71,7 +71,7 @@ impl FailedSession {
     }
 
     /// The error encountered when initializing the session.
-    pub(crate) fn error(&self) -> &ClientSetupError {
+    pub fn error(&self) -> &ClientSetupError {
         self.imp().error()
     }
 }

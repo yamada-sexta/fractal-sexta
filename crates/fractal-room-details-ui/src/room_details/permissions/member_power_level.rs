@@ -199,12 +199,12 @@ impl MemberPowerLevel {
     }
 
     /// The wanted power level of the member.
-    pub(crate) fn power_level(&self) -> UserPowerLevel {
+    pub fn power_level(&self) -> UserPowerLevel {
         self.imp().power_level.get()
     }
 
     /// Set the wanted power level of the member.
-    pub(crate) fn set_power_level(&self, power_level: UserPowerLevel) {
+    pub fn set_power_level(&self, power_level: UserPowerLevel) {
         self.imp().set_power_level(power_level);
     }
 
@@ -212,7 +212,7 @@ impl MemberPowerLevel {
     ///
     /// Returns `None` if the permissions could not be upgraded, or if the power
     /// level is the users default.
-    pub(crate) fn to_parts(&self) -> Option<(OwnedUserId, Int)> {
+    pub fn to_parts(&self) -> Option<(OwnedUserId, Int)> {
         let permissions = self.permissions()?;
 
         let UserPowerLevel::Int(power_level) = self.power_level() else {
@@ -230,14 +230,14 @@ impl MemberPowerLevel {
     }
 
     /// The string to use to search for this member.
-    pub(crate) fn search_string(&self) -> String {
+    pub fn search_string(&self) -> String {
         let user = self.user();
         format!("{} {} {}", user.display_name(), user.user_id(), self.role())
     }
 
     /// Connect to the signal emitted when the power level of the member
     /// changed.
-    pub(crate) fn connect_power_level_changed<F: Fn(&Self) + 'static>(
+    pub fn connect_power_level_changed<F: Fn(&Self) + 'static>(
         &self,
         f: F,
     ) -> glib::SignalHandlerId {

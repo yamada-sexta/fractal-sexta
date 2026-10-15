@@ -1,3 +1,4 @@
+#![recursion_limit = "256"]
 //! Collection of common methods and types.
 
 use std::{
@@ -20,39 +21,21 @@ use tempfile::NamedTempFile;
 use tokio::task::{AbortHandle, JoinHandle};
 use tracing::error;
 
-pub(crate) mod expression;
-mod expression_list_model;
-mod fixed_selection;
-mod grouping_list_model;
-pub(crate) mod key_bindings;
-mod location;
+pub mod i18n;
 mod macros;
-pub(crate) mod matrix;
-pub(crate) mod media;
-pub(crate) mod notifications;
-mod placeholder_object;
-mod single_item_list_model;
-pub(crate) mod sourceview;
-pub(crate) mod string;
-mod template_callbacks;
-#[cfg(test)]
-pub(crate) mod tests;
-pub(crate) mod toast;
-
-pub(crate) use self::{
-    expression_list_model::ExpressionListModel,
-    fixed_selection::FixedSelection,
-    grouping_list_model::*,
-    location::{Location, LocationError, LocationExt},
-    placeholder_object::PlaceholderObject,
-    single_item_list_model::SingleItemListModel,
-    template_callbacks::TemplateCallbacks,
-};
-use crate::{PROFILE, RUNTIME};
+pub mod string;
+pub mod user_facing_error;
+pub use fractal_config::PROFILE;
+pub use i18n::{gettext_f, ngettext_f};
+pub static RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
+    tokio::runtime::Runtime::new().expect("creating tokio runtime should succeed")
+});
+pub static MEDIA_FILE_NOTIFIER: LazyLock<OneshotNotifier> =
+    LazyLock::new(|| OneshotNotifier::new("MEDIA_FILE_NOTIFIER"));
 
 /// The type of data.
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum DataType {
+pub enum DataType {
     /// Data that should not be deleted.
     Persistent,
     /// Cache that can be deleted freely.
@@ -62,7 +45,7 @@ pub(crate) enum DataType {
 impl DataType {
     /// The path of the directory where data should be stored, depending on this
     /// type.
-    pub(crate) fn dir_path(self) -> PathBuf {
+    pub fn dir_path(self) -> PathBuf {
         let mut path = match self {
             DataType::Persistent => glib::user_data_dir(),
             DataType::Cache => glib::user_cache_dir(),
@@ -77,7 +60,7 @@ impl DataType {
 ///
 /// The expected format to replace is `{name}`, where `name` is the first string
 /// in the dictionary entry tuple.
-pub(crate) fn freplace<'a>(s: &'a str, args: &[(&str, &str)]) -> Cow<'a, str> {
+pub fn freplace<'a>(s: &'a str, args: &[(&str, &str)]) -> Cow<'a, str> {
     let mut s = Cow::Borrowed(s);
 
     for (k, v) in args {
@@ -88,7 +71,7 @@ pub(crate) fn freplace<'a>(s: &'a str, args: &[(&str, &str)]) -> Cow<'a, str> {
 }
 
 /// Regex that matches a string that only includes emojis.
-pub(crate) static EMOJI_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+pub static EMOJI_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r"(?x)
         ^
@@ -128,7 +111,7 @@ impl<T: ObjectType> BoundObject<T> {
     ///
     /// Calls `disconnect_signals` first to drop the previous strong reference
     /// and disconnect the previous signal handlers.
-    pub(crate) fn set(&self, obj: T, signal_handler_ids: Vec<glib::SignalHandlerId>) {
+    pub fn set(&self, obj: T, signal_handler_ids: Vec<glib::SignalHandlerId>) {
         self.disconnect_signals();
 
         let inner = BoundObjectInner {
@@ -199,7 +182,7 @@ impl<T: ObjectType> BoundObjectWeakRef<T> {
     ///
     /// Calls `disconnect_signals` first to remove the previous weak reference
     /// and disconnect the previous signal handlers.
-    pub(crate) fn set(&self, obj: &T, signal_handler_ids: Vec<glib::SignalHandlerId>) {
+    pub fn set(&self, obj: &T, signal_handler_ids: Vec<glib::SignalHandlerId>) {
         self.disconnect_signals();
 
         self.weak_obj.set(Some(obj));
@@ -270,7 +253,7 @@ impl<T: ObjectType> BoundConstructOnlyObject<T> {
     /// Set the given object and signal handlers IDs.
     ///
     /// Panics if the object was already set.
-    pub(crate) fn set(&self, obj: T, signal_handler_ids: Vec<glib::SignalHandlerId>) {
+    pub fn set(&self, obj: T, signal_handler_ids: Vec<glib::SignalHandlerId>) {
         self.obj.set(obj).unwrap();
         self.signal_handler_ids.replace(signal_handler_ids);
     }
@@ -335,7 +318,7 @@ impl<T> OngoingAsyncAction<T> {
     /// Create a new async action that sets the given value.
     ///
     /// Returns both a strong and a weak reference.
-    pub(crate) fn set(value: T) -> (Self, WeakOngoingAsyncAction<T>) {
+    pub fn set(value: T) -> (Self, WeakOngoingAsyncAction<T>) {
         let strong = Rc::new(AsyncAction::Set(value));
         let weak = Rc::downgrade(&strong);
         (Self { strong }, WeakOngoingAsyncAction { weak })
@@ -344,14 +327,14 @@ impl<T> OngoingAsyncAction<T> {
     /// Create a new async action that removes a value.
     ///
     /// Returns both a strong and a weak reference.
-    pub(crate) fn remove() -> (Self, WeakOngoingAsyncAction<T>) {
+    pub fn remove() -> (Self, WeakOngoingAsyncAction<T>) {
         let strong = Rc::new(AsyncAction::Remove);
         let weak = Rc::downgrade(&strong);
         (Self { strong }, WeakOngoingAsyncAction { weak })
     }
 
     /// Get the inner value, if any.
-    pub(crate) fn as_value(&self) -> Option<&T> {
+    pub fn as_value(&self) -> Option<&T> {
         self.strong.as_value()
     }
 }
@@ -372,7 +355,7 @@ impl<T> WeakOngoingAsyncAction<T> {
 
 /// An async action.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum AsyncAction<T> {
+pub enum AsyncAction<T> {
     /// An async action is ongoing to set this value.
     Set(T),
 
@@ -443,7 +426,7 @@ pub enum LoadingState {
 }
 
 /// Convert the given checked `bool` to a `GtkAccessibleTristate`.
-pub(crate) fn bool_to_accessible_tristate(checked: bool) -> gtk::AccessibleTristate {
+pub fn bool_to_accessible_tristate(checked: bool) -> gtk::AccessibleTristate {
     if checked {
         gtk::AccessibleTristate::True
     } else {
@@ -465,7 +448,7 @@ pub enum File {
 
 impl File {
     /// The path to the file.
-    pub(crate) fn path(&self) -> Option<PathBuf> {
+    pub fn path(&self) -> Option<PathBuf> {
         match self {
             Self::Gio(file) => file.path(),
             Self::Temp(file) => Some(file.path().to_owned()),
@@ -473,7 +456,7 @@ impl File {
     }
 
     /// Get a `GFile` for this file.
-    pub(crate) fn as_gfile(&self) -> gio::File {
+    pub fn as_gfile(&self) -> gio::File {
         match self {
             Self::Gio(file) => file.clone(),
             Self::Temp(file) => gio::File::for_path(file.path()),
@@ -504,7 +487,7 @@ static TMP_DIR: LazyLock<Box<Path>> = LazyLock::new(|| {
 ///
 /// When all strong references to the returned file are destroyed, the file will
 /// be destroyed too.
-pub(crate) async fn save_data_to_tmp_file(data: Vec<u8>) -> Result<File, std::io::Error> {
+pub async fn save_data_to_tmp_file(data: Vec<u8>) -> Result<File, std::io::Error> {
     RUNTIME
         .spawn_blocking(move || {
             let dir = TMP_DIR.as_ref();
@@ -540,7 +523,7 @@ struct InnerCountedRef {
 
 impl CountedRef {
     /// Construct a counted reference.
-    pub(crate) fn new<F1, F2>(on_zero: F1, on_non_zero: F2) -> Self
+    pub fn new<F1, F2>(on_zero: F1, on_non_zero: F2) -> Self
     where
         F1: Fn() + 'static,
         F2: Fn() + 'static,
@@ -594,7 +577,7 @@ impl Drop for CountedRef {
 }
 
 /// Extensions trait for types with a `child` property.
-pub(crate) trait ChildPropertyExt {
+pub trait ChildPropertyExt {
     /// The child of this widget, is any.
     fn child_property(&self) -> Option<gtk::Widget>;
 
@@ -660,7 +643,7 @@ impl ChildPropertyExt for gtk::ListItem {
 /// implement `IsA<adw::Bin>` in the future… So instead of reimplementing
 /// `ChildPropertyExt` for every type where we need it, which requires to
 /// implement two methods, we only implement this which requires nothing.
-pub(crate) trait IsABin: IsA<adw::Bin> {}
+pub trait IsABin: IsA<adw::Bin> {}
 
 impl IsABin for adw::Bin {}
 
@@ -669,7 +652,7 @@ impl IsABin for adw::Bin {}
 ///
 /// The main API for this type is [`AbortableHandle::await_task()`].
 #[derive(Debug, Default)]
-pub(crate) struct AbortableHandle {
+pub struct AbortableHandle {
     abort_handle: RefCell<Option<AbortHandle>>,
 }
 
@@ -679,7 +662,7 @@ impl AbortableHandle {
     /// Aborts the previous task that was running, if any.
     ///
     /// Returns `None` if the task was aborted before completion.
-    pub(crate) async fn await_task<T>(&self, join_handle: JoinHandle<T>) -> Option<T> {
+    pub async fn await_task<T>(&self, join_handle: JoinHandle<T>) -> Option<T> {
         self.abort();
 
         self.abort_handle.replace(Some(join_handle.abort_handle()));
@@ -692,7 +675,7 @@ impl AbortableHandle {
     }
 
     /// Abort the current task, if possible.
-    pub(crate) fn abort(&self) {
+    pub fn abort(&self) {
         if let Some(abort_handle) = self.abort_handle.take() {
             abort_handle.abort();
         }
@@ -709,7 +692,7 @@ impl Drop for AbortableHandle {
 ///
 /// Returns the slice as-is if it is of the correct length. Returns a `Vec` of
 /// zeroes if the slice is empty.
-pub(crate) fn resample_slice(slice: &[f32], new_len: usize) -> Cow<'_, [f32]> {
+pub fn resample_slice(slice: &[f32], new_len: usize) -> Cow<'_, [f32]> {
     let len = slice.len();
 
     if len == new_len {
@@ -775,7 +758,7 @@ pub(crate) fn resample_slice(slice: &[f32], new_len: usize) -> Cow<'_, [f32]> {
 /// while there is already a receiver waiting, it will be notified as if the
 /// notifier was dropped.
 #[derive(Debug, Clone)]
-pub(crate) struct OneshotNotifier<T = ()> {
+pub struct OneshotNotifier<T = ()> {
     /// The context used to identify the notifier in logs.
     context: &'static str,
     /// The sender for the notification signal.
@@ -784,7 +767,7 @@ pub(crate) struct OneshotNotifier<T = ()> {
 
 impl<T> OneshotNotifier<T> {
     /// Get a new `OneshotNotifier` for the given context.
-    pub(crate) fn new(context: &'static str) -> Self {
+    pub fn new(context: &'static str) -> Self {
         Self {
             sender: Default::default(),
             context,
@@ -797,7 +780,7 @@ where
     T: Default + Send + 'static,
 {
     /// Initialize this `OneshotNotifier` and get a receiver.
-    pub(crate) fn listen(&self) -> OneshotNotifierReceiver<T> {
+    pub fn listen(&self) -> OneshotNotifierReceiver<T> {
         let (sender, receiver) = oneshot::channel();
 
         match self.sender.lock() {
@@ -815,7 +798,7 @@ where
 
     /// Notify the receiver with the given value, if any receiver is still
     /// listening.
-    pub(crate) fn notify_value(&self, value: T) {
+    pub fn notify_value(&self, value: T) {
         match self.sender.lock() {
             Ok(mut guard) => {
                 if let Some(sender) = guard.take() {
@@ -833,7 +816,7 @@ where
 
     /// Notify the receiver with the default value, if any receiver is still
     /// listening.
-    pub(crate) fn notify(&self) {
+    pub fn notify(&self) {
         self.notify_value(T::default());
     }
 }
@@ -842,7 +825,7 @@ where
 ///
 /// This should be `.await`ed to wait for a notification.
 #[derive(Debug)]
-pub(crate) struct OneshotNotifierReceiver<T = ()>(oneshot::Receiver<T>);
+pub struct OneshotNotifierReceiver<T = ()>(oneshot::Receiver<T>);
 
 impl<T> IntoFuture for OneshotNotifierReceiver<T>
 where
@@ -864,7 +847,7 @@ where
 ///
 /// All listeners are dropped when the broadcaster is dropped.
 #[derive(Debug)]
-pub(crate) struct Broadcaster<T: Clone>(
+pub struct Broadcaster<T: Clone>(
     // The main purpose of this API is to abstract the inner type to be able to change it depending
     // on the evolution of our dependency tree without requiring to change lots of code.
     //
@@ -877,12 +860,12 @@ pub(crate) struct Broadcaster<T: Clone>(
 
 impl<T: Clone + 'static> Broadcaster<T> {
     /// Send the given value to all the listeners.
-    pub(crate) fn send(&self, value: T) {
+    pub fn send(&self, value: T) {
         self.0.set(Some(value));
     }
 
     /// Listen to new values and call the given callback.
-    pub(crate) fn connect<F>(&self, callback: F)
+    pub fn connect<F>(&self, callback: F)
     where
         F: Fn(T) + 'static,
     {

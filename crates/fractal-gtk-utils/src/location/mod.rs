@@ -11,16 +11,16 @@ mod linux;
 cfg_select! {
     target_os = "linux" => {
         /// The secret API.
-        pub(crate) type Location = linux::LinuxLocation;
+        pub type Location = linux::LinuxLocation;
     }
     _ => {
         /// The secret API.
-        pub(crate) type Location = unimplemented::UnimplementedLocation;
+        pub type Location = unimplemented::UnimplementedLocation;
     }
 }
 
 /// Trait implemented by location backends.
-pub(crate) trait LocationExt {
+pub trait LocationExt {
     /// Whether the location API is available.
     fn is_available(&self) -> bool;
 
@@ -37,7 +37,7 @@ mod unimplemented {
     use super::*;
 
     #[derive(Debug)]
-    pub(crate) struct UnimplementedLocation;
+    pub struct UnimplementedLocation;
 
     impl LocationExt for UnimplementedLocation {
         /// Whether the location API is available.
@@ -59,7 +59,7 @@ mod unimplemented {
 
 /// High-level errors that can occur while fetching the location.
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum LocationError {
+pub enum LocationError {
     /// The user cancelled the request to get the location.
     Cancelled,
     /// The location services are disabled on the system.

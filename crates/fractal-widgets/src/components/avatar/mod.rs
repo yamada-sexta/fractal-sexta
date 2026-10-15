@@ -2,9 +2,9 @@ use adw::{prelude::*, subclass::prelude::*};
 use gtk::{gdk, glib, glib::clone};
 
 mod crop_circle;
-mod data;
+pub use fractal_backend::components::avatar::data;
 mod editable;
-mod image;
+pub use fractal_backend::components::avatar::image;
 mod overlapping;
 
 use self::image::AvatarPaintableSize;
@@ -118,6 +118,8 @@ mod imp {
 
         fn unmap(&self) {
             self.parent_unmap();
+            self.paintable_ref.take();
+            self.avatar.set_custom_image(None::<&gdk::Paintable>);
             self.update_animated_paintable_state();
         }
     }

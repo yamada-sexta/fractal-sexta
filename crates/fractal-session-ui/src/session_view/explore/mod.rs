@@ -319,7 +319,7 @@ impl Explore {
     }
 
     /// The header bar of the explorer.
-    pub(crate) fn header_bar(&self) -> &adw::HeaderBar {
+    pub fn header_bar(&self) -> &adw::HeaderBar {
         &self.imp().header_bar
     }
 }

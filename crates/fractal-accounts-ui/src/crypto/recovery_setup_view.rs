@@ -589,7 +589,7 @@ impl CryptoRecoverySetupView {
     }
 
     /// Set the initial page of this view.
-    pub(crate) fn set_initial_page(&self, initial_page: CryptoRecoverySetupInitialPage) {
+    pub fn set_initial_page(&self, initial_page: CryptoRecoverySetupInitialPage) {
         self.imp().set_initial_page(initial_page);
     }
 

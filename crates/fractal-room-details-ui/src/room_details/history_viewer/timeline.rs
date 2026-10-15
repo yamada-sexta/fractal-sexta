@@ -243,7 +243,7 @@ impl HistoryViewerTimeline {
 
     /// Load more events in the timeline until the given function tells us to
     /// stop.
-    pub(crate) async fn load<F>(&self, continue_fn: F)
+    pub async fn load<F>(&self, continue_fn: F)
     where
         F: Fn() -> ControlFlow<()>,
     {
@@ -254,7 +254,7 @@ impl HistoryViewerTimeline {
     ///
     /// The loading item is a [`LoadingRow`], all other items are
     /// [`HistoryViewerEvent`]s.
-    pub(crate) fn with_loading_item(&self) -> &gio::ListModel {
+    pub fn with_loading_item(&self) -> &gio::ListModel {
         self.imp().model_with_loading_item().upcast_ref()
     }
 }

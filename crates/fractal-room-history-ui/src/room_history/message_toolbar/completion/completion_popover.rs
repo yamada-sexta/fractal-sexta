@@ -123,6 +123,11 @@ mod imp {
                 }
             });
 
+            self.obj().connect_closed(clone!(
+                #[weak(rename_to = imp)]
+                self,
+                move |_| imp.member_list.set_active(false)
+            ));
             self.list.connect_row_activated(clone!(
                 #[weak(rename_to = imp)]
                 self,
@@ -141,6 +146,8 @@ mod imp {
     impl CompletionPopover {
         /// Set the current room.
         fn set_room(&self, room: Option<&Room>) {
+            self.member_list.set_active(false);
+            self.obj().popdown();
             self.member_list.set_room(room);
 
             self.room_list
@@ -294,6 +301,7 @@ mod imp {
                 } else {
                     self.obj().popdown();
                     self.select_row_at_index(None);
+                    self.member_list.set_active(false);
                     self.set_current_word(None);
                 }
             }
@@ -539,6 +547,10 @@ mod imp {
                 .current_word()
                 .map(|(_, _, term)| term.into_normalized_parts());
 
+            self.member_list.set_active(
+                term.as_ref()
+                    .is_some_and(|(target, _)| *target != SearchTermTarget::Room),
+            );
             let list = match term {
                 Some((SearchTermTarget::Room, term)) => {
                     self.room_list.set_search_term(term.as_deref());

@@ -23,7 +23,7 @@ const AVATAR_COLOR_LIST: [(&str, &str, &str); 14] = [
 ];
 
 /// Generate a notification icon from the given paintable.
-pub(crate) fn paintable_as_notification_icon(
+pub fn paintable_as_notification_icon(
     paintable: &gdk::Paintable,
     scale_factor: i32,
     renderer: &gsk::Renderer,
@@ -91,7 +91,7 @@ pub(crate) fn paintable_as_notification_icon(
 /// Generate a notification icon from a string.
 ///
 /// This should match the behavior of `AdwAvatar`.
-pub(crate) fn string_as_notification_icon(
+pub fn string_as_notification_icon(
     string: &str,
     scale_factor: i32,
     layout: &pango::Layout,

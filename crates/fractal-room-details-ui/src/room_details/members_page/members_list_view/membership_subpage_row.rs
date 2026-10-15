@@ -2,8 +2,7 @@ use gettextrs::{gettext, pgettext};
 use gtk::{glib, glib::clone, prelude::*, subclass::prelude::*};
 
 use crate::{
-    session::MembershipListKind,
-    session_view::room_details::membership_subpage_item::MembershipSubpageItem,
+    room_details::membership_subpage_item::MembershipSubpageItem, session::MembershipListKind,
 };
 
 mod imp {

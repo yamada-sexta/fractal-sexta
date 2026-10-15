@@ -276,6 +276,9 @@ mod imp {
                 );
 
                 self.build_event_widget(event);
+            } else {
+                self.obj().set_child(None::<&gtk::Widget>);
+                self.obj().set_popover(None);
             }
 
             self.update_actions();

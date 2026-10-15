@@ -14,7 +14,7 @@ const ACTIVATE_KEYS: &[gdk::Key] = &[
 
 /// Add key bindings to the given class to trigger the given action to activate
 /// a widget.
-pub(crate) fn add_activate_bindings<T: WidgetClassExt>(klass: &mut T, action: &str) {
+pub fn add_activate_bindings<T: WidgetClassExt>(klass: &mut T, action: &str) {
     for key in ACTIVATE_KEYS {
         klass.add_binding_action(*key, gdk::ModifierType::empty(), action);
     }
@@ -28,7 +28,7 @@ const CONTEXT_MENU_BINDINGS: &[(gdk::Key, gdk::ModifierType)] = &[
 
 /// Add key bindings to the given class to trigger the given action to show a
 /// context menu.
-pub(crate) fn add_context_menu_bindings<T: WidgetClassExt>(klass: &mut T, action: &str) {
+pub fn add_context_menu_bindings<T: WidgetClassExt>(klass: &mut T, action: &str) {
     for (key, modifier) in CONTEXT_MENU_BINDINGS {
         klass.add_binding_action(*key, *modifier, action);
     }

@@ -25,8 +25,8 @@ if get_option('version-suffix') != ''
     full_version += '-' + get_option('version-suffix')
 endif
 
-dependency('glib-2.0', version: '>= 2.82')  # update when changing gtk version
-dependency('gio-2.0', version: '>= 2.82')  # always same version as glib
+dependency('glib-2.0', version: '>= 2.86')  # update when changing gtk version
+dependency('gio-2.0', version: '>= 2.86')  # always same version as glib
 dependency('gtk4', version: '>= 4.20.2')
 dependency('libadwaita-1', version: '>= 1.8.0')
 
@@ -183,7 +183,7 @@ if not build_env_only
     subdir('po')
 endif
 
-subdir('src')
+subdir('crates/fractal-app/src')
 
 gnome.post_install(
     gtk_update_icon_cache: true,

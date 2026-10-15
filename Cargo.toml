@@ -1,5 +1,10 @@
-[package]
-name = "fractal"
+[workspace]
+members = ["crates/*"]
+default-members = ["crates/fractal-app"]
+exclude = ["hooks/checks"]
+resolver = "3"
+
+[workspace.package]
 version = "14.1.0"
 authors = ["Julian Sparber <julian@sparber.net>"]
 license = "GPL-3.0-or-later"
@@ -7,27 +12,9 @@ edition = "2024"
 rust-version = "1.96"
 publish = false
 
-[package.metadata.cargo-machete]
-ignored = [
-    # Used by the SecretFile API.
-    "serde_bytes",
-]
+[workspace.dependencies]
+fast_image_resize = { version = "6.1", default-features = false, features = ["std"] }
 
-[profile.release]
-debug = true
-lto = "thin"
-codegen-units = 1
-
-[profile.dev.package."*"]
-opt-level = 3
-debug = false
-debug-assertions = false
-overflow-checks = false
-incremental = false
-codegen-units = 16
-
-# Please keep dependencies sorted.
-[dependencies]
 as_variant = "1"
 blurhash = "0.2"
 eyeball = "0.8"
@@ -73,7 +60,22 @@ gtk = { version = "0.11", features = ["gnome_49"], package = "gtk4" }
 shumate = { version = "0.8", features = ["v1_1"], package = "libshumate" }
 sourceview = { version = "0.11", package = "sourceview5" }
 
-[dependencies.matrix-sdk]
+aperture = "0.12"
+ashpd = { version = "0.13.9", default-features = false, features = [
+    "camera",
+    "location",
+    "settings",
+    "tracing",
+    "tokio",
+] }
+oo7 = { version = "0.7.0-alpha", default-features = false, features = [
+    "native_crypto",
+    "tokio",
+    "tracing",
+] }
+strass = "0.2.2"
+
+[workspace.dependencies.matrix-sdk]
 # version = "0.19"
 git = "https://github.com/matrix-org/matrix-rust-sdk.git"
 rev = "06e76ecdc869002dca8c8189e822b884125c8ef3"
@@ -89,18 +91,18 @@ features = [
     "sso-login",
 ]
 
-[dependencies.matrix-sdk-store-encryption]
+[workspace.dependencies.matrix-sdk-store-encryption]
 # version = "0.19"
 git = "https://github.com/matrix-org/matrix-rust-sdk.git"
 rev = "06e76ecdc869002dca8c8189e822b884125c8ef3"
 
-[dependencies.matrix-sdk-ui]
+[workspace.dependencies.matrix-sdk-ui]
 # version = "0.19"
 git = "https://github.com/matrix-org/matrix-rust-sdk.git"
 rev = "06e76ecdc869002dca8c8189e822b884125c8ef3"
 default-features = false
 
-[dependencies.ruma]
+[workspace.dependencies.ruma]
 # version = "0.17"
 git = "https://github.com/ruma/ruma.git"
 rev = "f5e5e1c885f598036fd4326c566e9d1928027d5d"
@@ -119,26 +121,7 @@ features = [
     "triomphe",
 ]
 
-# Linux-only dependencies.
-[target.'cfg(target_os = "linux")'.dependencies]
-aperture = "0.12"
-ashpd = { version = "0.13.9", default-features = false, features = [
-    "camera",
-    "location",
-    "settings",
-    "tracing",
-    "tokio",
-] }
-oo7 = { version = "0.7.0-alpha", default-features = false, features = [
-    "native_crypto",
-    "tokio",
-    "tracing",
-] }
-
-[dev-dependencies]
-strass = "0.2.2"
-
-[lints.clippy]
+[workspace.lints.clippy]
 pedantic = { level = "warn", priority = -1 }
 cast_possible_truncation = "allow"
 cast_precision_loss = "allow"
@@ -148,3 +131,19 @@ new_without_default = "allow"
 struct_field_names = "allow"
 unsafe_derive_deserialize = "allow"
 wildcard_imports = "allow"
+
+[workspace.lints.rust]
+async_fn_in_trait = "allow"
+
+[profile.release]
+debug = true
+lto = "thin"
+codegen-units = 1
+
+[profile.dev.package."*"]
+opt-level = 3
+debug = false
+debug-assertions = false
+overflow-checks = false
+incremental = false
+codegen-units = 16

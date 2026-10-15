@@ -299,17 +299,17 @@ impl UserSessionsList {
     }
 
     /// Initialize this list with the given session and user ID.
-    pub(crate) fn init(&self, session: &Session, user_id: OwnedUserId) {
+    pub fn init(&self, session: &Session, user_id: OwnedUserId) {
         self.imp().init(session, user_id);
     }
 
     /// Load the list of user sessions.
-    pub(crate) async fn load(&self) {
+    pub async fn load(&self) {
         self.imp().load().await;
     }
 
     /// Find the user session with the given device ID, if any.
-    pub(crate) fn get(&self, device_id: &OwnedDeviceId) -> Option<UserSession> {
+    pub fn get(&self, device_id: &OwnedDeviceId) -> Option<UserSession> {
         self.imp().get(device_id)
     }
 }

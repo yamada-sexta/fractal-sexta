@@ -4,8 +4,8 @@ use gtk::glib;
 use super::MembershipSubpageRow;
 use crate::{
     prelude::*,
+    room_details::{MemberRow, MembershipSubpageItem},
     session::Member,
-    session_view::room_details::{MemberRow, MembershipSubpageItem},
 };
 
 mod imp {

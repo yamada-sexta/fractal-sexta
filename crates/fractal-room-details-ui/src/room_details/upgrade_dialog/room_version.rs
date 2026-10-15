@@ -67,7 +67,7 @@ impl RoomVersion {
     }
 
     /// The ID of this version.
-    pub(crate) fn id(&self) -> &RoomVersionId {
+    pub fn id(&self) -> &RoomVersionId {
         self.imp().id()
     }
 }

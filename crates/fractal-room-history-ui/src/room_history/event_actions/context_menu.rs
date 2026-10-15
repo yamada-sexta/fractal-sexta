@@ -8,9 +8,9 @@ use crate::session::ReactionList;
 ///
 /// [`Event`]: crate::session::Event
 #[derive(Debug)]
-pub(crate) struct EventActionsContextMenu {
+pub struct EventActionsContextMenu {
     /// The popover of the context menu.
-    pub(crate) popover: gtk::PopoverMenu,
+    pub popover: gtk::PopoverMenu,
     /// The menu model of the popover.
     menu_model: gio::Menu,
     /// The quick reaction chooser in the context menu.
@@ -36,7 +36,7 @@ impl EventActionsContextMenu {
 
     /// Add the quick reaction chooser to this menu, if it is not already
     /// present, and set the reaction list.
-    pub(crate) fn add_quick_reaction_chooser(&self, reactions: ReactionList) {
+    pub fn add_quick_reaction_chooser(&self, reactions: ReactionList) {
         if !self.has_quick_reaction_chooser() {
             let section_menu = gio::Menu::new();
             let item = gio::MenuItem::new(None, None);
@@ -57,7 +57,7 @@ impl EventActionsContextMenu {
     }
 
     /// Remove the quick reaction chooser from this menu, if it is present.
-    pub(crate) fn remove_quick_reaction_chooser(&self) {
+    pub fn remove_quick_reaction_chooser(&self) {
         if !self.has_quick_reaction_chooser() {
             return;
         }

@@ -68,7 +68,7 @@ impl TimelineItem {
     ///
     /// A `TimelineItem` should not be updated with a SDK item that has a
     /// different timeline ID.
-    pub(crate) fn update_with(&self, item: &SdkTimelineItem) {
+    pub fn update_with(&self, item: &SdkTimelineItem) {
         if self.timeline_id() != item.unique_id().0 {
             error!("Should not update an item with a different timeline ID");
         }
@@ -102,7 +102,7 @@ impl TimelineItem {
 /// To override the behavior of these methods, override the corresponding method
 /// of `TimelineItemImpl`.
 #[allow(dead_code)]
-pub(crate) trait TimelineItemExt: 'static {
+pub trait TimelineItemExt: 'static {
     /// The timeline containing this `TimelineItem`.
     fn timeline(&self) -> Timeline;
 
@@ -130,7 +130,7 @@ impl<O: IsA<TimelineItem>> TimelineItemExt for O {
 ///
 /// Overriding a method from this Trait overrides also its behavior in
 /// `TimelineItemExt`.
-pub(crate) trait TimelineItemImpl: ObjectImpl {}
+pub trait TimelineItemImpl: ObjectImpl {}
 
 // Make `TimelineItem` subclassable.
 unsafe impl<T> IsSubclassable<T> for TimelineItem

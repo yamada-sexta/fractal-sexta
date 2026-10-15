@@ -5,7 +5,7 @@ mod linux;
 mod qrcode_scanner;
 mod viewfinder;
 
-pub(crate) use self::qrcode_scanner::QrCodeScanner;
+pub use self::qrcode_scanner::QrCodeScanner;
 use self::{
     qrcode_scanner::QrVerificationDataBoxed,
     viewfinder::{
@@ -16,11 +16,11 @@ use self::{
 cfg_select! {
     target_os = "linux" => {
         /// The camera API.
-        pub(crate) type Camera = linux::LinuxCamera;
+        pub type Camera = linux::LinuxCamera;
     }
     _ => {
         /// The camera API.
-        pub(crate) type Camera = unimplemented::UnimplementedCamera;
+        pub type Camera = unimplemented::UnimplementedCamera;
     }
 }
 
@@ -42,7 +42,7 @@ mod unimplemented {
     use super::*;
 
     #[derive(Debug)]
-    pub(crate) struct UnimplementedCamera;
+    pub struct UnimplementedCamera;
 
     impl CameraExt for UnimplementedCamera {
         async fn has_cameras() -> bool {

@@ -256,19 +256,19 @@ glib::wrapper! {
 
 impl GlobalAccountData {
     /// Create a new `GlobalAccountData` for the given session.
-    pub(crate) fn new(session: &Session) -> Self {
+    pub fn new(session: &Session) -> Self {
         glib::Object::builder::<Self>()
             .property("session", session)
             .build()
     }
 
     /// Which rooms display media previews.
-    pub(crate) fn media_previews_enabled(&self) -> MediaPreviews {
+    pub fn media_previews_enabled(&self) -> MediaPreviews {
         self.imp().media_previews_enabled.borrow().clone()
     }
 
     /// Whether the given room should display media previews.
-    pub(crate) fn should_room_show_media_previews(&self, room: &Room) -> bool {
+    pub fn should_room_show_media_previews(&self, room: &Room) -> bool {
         match &*self.imp().media_previews_enabled.borrow() {
             MediaPreviews::Off => false,
             MediaPreviews::Private => matches!(
@@ -280,15 +280,12 @@ impl GlobalAccountData {
     }
 
     /// Set which rooms display media previews.
-    pub(crate) async fn set_media_previews_enabled(
-        &self,
-        setting: MediaPreviews,
-    ) -> Result<(), ()> {
+    pub async fn set_media_previews_enabled(&self, setting: MediaPreviews) -> Result<(), ()> {
         self.imp().set_media_previews_enabled(setting).await
     }
 
     /// Set whether to display avatars in invites.
-    pub(crate) async fn set_invite_avatars_enabled(&self, enabled: bool) -> Result<(), ()> {
+    pub async fn set_invite_avatars_enabled(&self, enabled: bool) -> Result<(), ()> {
         self.imp().set_invite_avatars_enabled(enabled).await
     }
 

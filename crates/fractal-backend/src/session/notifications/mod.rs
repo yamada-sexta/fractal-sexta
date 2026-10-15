@@ -18,12 +18,12 @@ use tracing::{debug, warn};
 
 mod notifications_settings;
 
-pub(crate) use self::notifications_settings::{
+pub use self::notifications_settings::{
     NotificationsGlobalSetting, NotificationsRoomSetting, NotificationsSettings,
 };
 use super::{IdentityVerification, Session, VerificationKey};
 use crate::{
-    Application, Window, gettext_f,
+    gettext_f,
     intent::SessionIntent,
     prelude::*,
     spawn_tokio,
@@ -61,6 +61,7 @@ mod imp {
         ///
         /// A map of room ID to list of notification IDs.
         pub(super) push: RefCell<HashMap<OwnedRoomId, HashSet<String>>>,
+        pub(super) active_room: RefCell<Option<OwnedRoomId>>,
         /// The identity verification notifications that were presented.
         ///
         /// A map of verification key to notification ID.
@@ -100,12 +101,15 @@ glib::wrapper! {
 }
 
 impl Notifications {
+    pub fn set_active_room(&self, room: Option<OwnedRoomId>) {
+        self.imp().active_room.replace(room);
+    }
     pub fn new() -> Self {
         glib::Object::new()
     }
 
     /// Whether notifications are enabled for the current session.
-    pub(crate) fn enabled(&self) -> bool {
+    pub fn enabled(&self) -> bool {
         let settings = self.settings();
         settings.account_enabled() && settings.session_enabled()
     }
@@ -144,7 +148,9 @@ impl Notifications {
             notification.set_icon(notification_icon);
         }
 
-        Application::default().send_notification(Some(id), &notification);
+        gio::Application::default()
+            .expect("application is running")
+            .send_notification(Some(id), &notification);
     }
 
     /// Ask the system to show the given push notification, if applicable.
@@ -152,11 +158,7 @@ impl Notifications {
     /// The notification will not be shown if the application is active and the
     /// room of the event is displayed.
     #[allow(clippy::too_many_lines)]
-    pub(crate) async fn show_push(
-        &self,
-        matrix_notification: Notification,
-        matrix_room: MatrixRoom,
-    ) {
+    pub async fn show_push(&self, matrix_notification: Notification, matrix_room: MatrixRoom) {
         // Do not show notifications if they are disabled.
         if !self.enabled() {
             return;
@@ -166,20 +168,9 @@ impl Notifications {
             return;
         };
 
-        let app = Application::default();
-        let window = app.active_window().and_downcast::<Window>();
         let session_id = session.session_id();
         let room_id = matrix_room.room_id();
-
-        // Do not show notifications for the current room in the current session if the
-        // window is active.
-        if window.is_some_and(|w| {
-            w.is_active()
-                && w.current_session_id().as_deref() == Some(session_id)
-                && w.session_view()
-                    .selected_room()
-                    .is_some_and(|r| r.room_id() == room_id)
-        }) {
+        if self.imp().active_room.borrow().as_deref() == Some(room_id) {
             return;
         }
 
@@ -307,10 +298,7 @@ impl Notifications {
     }
 
     /// Show a notification for the given in-room identity verification.
-    pub(crate) async fn show_in_room_identity_verification(
-        &self,
-        verification: &IdentityVerification,
-    ) {
+    pub async fn show_in_room_identity_verification(&self, verification: &IdentityVerification) {
         // Do not show notifications if they are disabled.
         if !self.enabled() {
             return;
@@ -358,10 +346,7 @@ impl Notifications {
     }
 
     /// Show a notification for the given to-device identity verification.
-    pub(crate) async fn show_to_device_identity_verification(
-        &self,
-        verification: &IdentityVerification,
-    ) {
+    pub async fn show_to_device_identity_verification(&self, verification: &IdentityVerification) {
         // Do not show notifications if they are disabled.
         if !self.enabled() {
             return;
@@ -423,9 +408,9 @@ impl Notifications {
     ///
     /// Only the notifications that were shown since the application's startup
     /// are known, older ones might still be present.
-    pub(crate) fn withdraw_all_for_room(&self, room_id: &RoomId) {
+    pub fn withdraw_all_for_room(&self, room_id: &RoomId) {
         if let Some(notifications) = self.imp().push.borrow_mut().remove(room_id) {
-            let app = Application::default();
+            let app = gio::Application::default().expect("application is running");
 
             for id in notifications {
                 app.withdraw_notification(&id);
@@ -435,9 +420,9 @@ impl Notifications {
 
     /// Ask the system to remove the known notification for the identity
     /// verification with the given key.
-    pub(crate) fn withdraw_identity_verification(&self, key: &VerificationKey) {
+    pub fn withdraw_identity_verification(&self, key: &VerificationKey) {
         if let Some(id) = self.imp().identity_verifications.borrow_mut().remove(key) {
-            let app = Application::default();
+            let app = gio::Application::default().expect("application is running");
             app.withdraw_notification(&id);
         }
     }
@@ -446,8 +431,8 @@ impl Notifications {
     ///
     /// Only the notifications that were shown since the application's startup
     /// are known, older ones might still be present.
-    pub(crate) fn clear(&self) {
-        let app = Application::default();
+    pub fn clear(&self) {
+        let app = gio::Application::default().expect("application is running");
 
         for id in self.imp().push.take().values().flatten() {
             app.withdraw_notification(id);
@@ -471,7 +456,7 @@ impl Default for Notifications {
 ///
 /// Returns `None` if it is not a message-like event or if the message type is
 /// not supported.
-pub(crate) fn message_notification_body(
+pub fn message_notification_body(
     event: &AnySyncOrStrippedTimelineEvent,
     sender_name: &str,
     show_sender: bool,
@@ -540,7 +525,7 @@ fn text_event_body(message: String, sender_name: &str, show_sender: bool) -> Str
 /// This will return a localized body.
 ///
 /// Returns `None` if it is not an invite for our own user.
-pub(crate) fn own_invite_notification_body(
+pub fn own_invite_notification_body(
     event: &AnySyncOrStrippedTimelineEvent,
     sender_name: &str,
     own_user_id: &UserId,
@@ -588,7 +573,7 @@ pub(crate) fn own_invite_notification_body(
 /// This will return a localized body.
 ///
 /// Returns `None` if it is not an invite for the current user.
-pub(crate) fn incoming_call_notification_body(
+pub fn incoming_call_notification_body(
     event: &AnySyncOrStrippedTimelineEvent,
     sender_name: &str,
     from_dm_room: bool,

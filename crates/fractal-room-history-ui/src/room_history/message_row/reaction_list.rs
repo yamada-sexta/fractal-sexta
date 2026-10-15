@@ -77,7 +77,7 @@ impl MessageReactionList {
     }
 
     /// Set the list of reactions.
-    pub(crate) fn set_reaction_list(&self, members: &MemberList, reaction_list: &ReactionList) {
+    pub fn set_reaction_list(&self, members: &MemberList, reaction_list: &ReactionList) {
         self.imp().set_reaction_list(members, reaction_list);
     }
 }

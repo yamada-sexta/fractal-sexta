@@ -3,7 +3,7 @@ use gtk::{gio, glib, glib::clone, prelude::*, subclass::prelude::*};
 use crate::utils::BoundObject;
 
 /// A function that returns `true` if two `GObject`s are considered equivalent.
-pub(crate) type EquivalentObjectFn = dyn Fn(&glib::Object, &glib::Object) -> bool;
+pub type EquivalentObjectFn = dyn Fn(&glib::Object, &glib::Object) -> bool;
 
 mod imp {
     use std::{
@@ -333,7 +333,7 @@ impl FixedSelection {
     ///
     /// If this is not set, the `Eq` implementation is used, meaning that they
     /// must be the same object.
-    pub(crate) fn set_item_equivalence_fn(
+    pub fn set_item_equivalence_fn(
         &self,
         equivalence_fn: impl Fn(&glib::Object, &glib::Object) -> bool + 'static,
     ) {

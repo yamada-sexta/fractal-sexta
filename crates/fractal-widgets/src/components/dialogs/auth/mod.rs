@@ -512,7 +512,7 @@ impl AuthDialog {
     ///
     /// The type of flow and the required stages are negotiated during the
     /// authentication. Returns the last server response on success.
-    pub(crate) async fn authenticate<Response, Fut, FN>(
+    pub async fn authenticate<Response, Fut, FN>(
         &self,
         parent: &impl IsA<gtk::Widget>,
         callback: FN,
@@ -530,7 +530,7 @@ impl AuthDialog {
     ///
     /// The type of flow and the required stages are negotiated during the
     /// authentication. Returns the last server response on success.
-    pub(crate) async fn reset_cross_signing(
+    pub async fn reset_cross_signing(
         &self,
         parent: &impl IsA<gtk::Widget>,
     ) -> Result<(), AuthError> {

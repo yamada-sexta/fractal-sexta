@@ -239,17 +239,17 @@ impl PillSearchEntry {
     }
 
     /// Add a pill for the given source to the entry.
-    pub(crate) fn add_pill(&self, source: &impl IsA<PillSource>) {
+    pub fn add_pill(&self, source: &impl IsA<PillSource>) {
         self.imp().add_pill(source.upcast_ref());
     }
 
     /// Remove the pill with the given identifier.
-    pub(crate) fn remove_pill(&self, identifier: &str) {
+    pub fn remove_pill(&self, identifier: &str) {
         self.imp().remove_pill(identifier);
     }
 
     /// Clear this entry.
-    pub(crate) fn clear(&self) {
+    pub fn clear(&self) {
         self.imp().clear();
     }
 

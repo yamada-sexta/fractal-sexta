@@ -12,8 +12,8 @@ use self::{item_row::ItemRow, membership_subpage_row::MembershipSubpageRow};
 use crate::{
     components::LoadingRow,
     prelude::*,
+    room_details::MembershipSubpageItem,
     session::{Member, MemberList, MembershipListKind, Room},
-    session_view::room_details::MembershipSubpageItem,
     utils::{BoundObjectWeakRef, ExpressionListModel, LoadingState, expression},
 };
 

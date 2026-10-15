@@ -1,4 +1,4 @@
-use std::{borrow::Cow, cell::RefCell, fmt, rc::Rc};
+use std::{cell::RefCell, rc::Rc};
 
 use adw::{prelude::*, subclass::prelude::*};
 use gettextrs::gettext;
@@ -6,7 +6,7 @@ use gtk::{gio, glib, glib::clone};
 use tracing::{debug, error, info, warn};
 
 use crate::{
-    Window, config,
+    APP_HOMEPAGE_URL, APP_NAME, Window, config,
     intent::SessionIntent,
     prelude::*,
     session::{Session, SessionState},
@@ -16,13 +16,6 @@ use crate::{
     toast,
     utils::{BoundObjectWeakRef, LoadingState, matrix::MatrixIdUri},
 };
-
-/// The key for the current session setting.
-pub(crate) const SETTINGS_KEY_CURRENT_SESSION: &str = "current-session";
-/// The name of the application.
-pub(crate) const APP_NAME: &str = "Fractal Sexta";
-/// The URL of the homepage of the application.
-pub(crate) const APP_HOMEPAGE_URL: &str = "https://github.com/yamada-sexta/fractal-sexta";
 
 mod imp {
     use std::cell::Cell;
@@ -45,7 +38,7 @@ mod imp {
         fn default() -> Self {
             Self {
                 settings: gio::Settings::new(config::APP_ID),
-                system_settings: Default::default(),
+                system_settings: SystemSettings::shared(),
                 session_list: Default::default(),
                 intent_handler: Default::default(),
                 last_network_state: Default::default(),
@@ -63,6 +56,7 @@ mod imp {
     impl ObjectImpl for Application {
         fn constructed(&self) {
             self.parent_constructed();
+            self.session_list.settings().set_store(&self.settings);
 
             // Initialize actions and accelerators.
             self.set_up_gactions();
@@ -487,22 +481,22 @@ impl Application {
     }
 
     /// The application settings.
-    pub(crate) fn settings(&self) -> gio::Settings {
+    pub fn settings(&self) -> gio::Settings {
         self.imp().settings.clone()
     }
 
     /// The system settings.
-    pub(crate) fn system_settings(&self) -> SystemSettings {
+    pub fn system_settings(&self) -> SystemSettings {
         self.imp().system_settings.clone()
     }
 
     /// The list of logged-in sessions.
-    pub(crate) fn session_list(&self) -> &SessionList {
+    pub fn session_list(&self) -> &SessionList {
         &self.imp().session_list
     }
 
     /// Run Fractal.
-    pub(crate) fn run(&self) {
+    pub fn run(&self) {
         info!("{APP_NAME} ({})", config::APP_ID);
         info!("Version: {} ({})", config::VERSION, config::PROFILE);
         info!("Datadir: {}", config::PKGDATADIR);
@@ -516,48 +510,6 @@ impl Default for Application {
         gio::Application::default()
             .and_downcast::<Application>()
             .expect("application should always be available")
-    }
-}
-
-/// The profile that was built.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[allow(dead_code)]
-pub(crate) enum AppProfile {
-    /// A stable release.
-    Stable,
-    /// A beta release.
-    Beta,
-    /// A development release.
-    Devel,
-}
-
-impl AppProfile {
-    /// The string representation of this `AppProfile`.
-    pub(crate) fn as_str(&self) -> &str {
-        match self {
-            Self::Stable => "stable",
-            Self::Beta => "beta",
-            Self::Devel => "devel",
-        }
-    }
-
-    /// Whether this `AppProfile` should use the `.devel` CSS class on windows.
-    pub(crate) fn should_use_devel_class(self) -> bool {
-        matches!(self, Self::Devel)
-    }
-
-    /// The name of the directory where to put data for this profile.
-    pub(crate) fn dir_name(self) -> Cow<'static, str> {
-        match self {
-            AppProfile::Stable => Cow::Borrowed("fractal-sexta"),
-            _ => Cow::Owned(format!("fractal-sexta-{self}")),
-        }
-    }
-}
-
-impl fmt::Display for AppProfile {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
     }
 }
 
@@ -596,17 +548,5 @@ impl NetworkState {
 impl Default for NetworkState {
     fn default() -> Self {
         Self::Available(gio::NetworkConnectivity::Full)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::AppProfile;
-
-    #[test]
-    fn profile_data_directories_are_separate_from_upstream() {
-        assert_eq!(AppProfile::Stable.dir_name(), "fractal-sexta");
-        assert_eq!(AppProfile::Beta.dir_name(), "fractal-sexta-beta");
-        assert_eq!(AppProfile::Devel.dir_name(), "fractal-sexta-devel");
     }
 }

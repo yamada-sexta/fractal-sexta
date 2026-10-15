@@ -115,6 +115,9 @@ mod imp {
                 });
 
                 self.group.set(group, vec![items_changed_handler]);
+            } else {
+                self.list_box
+                    .bind_model(None::<&gio::ListModel>, |_| unreachable!());
             }
 
             self.items_changed(0, removed, added);

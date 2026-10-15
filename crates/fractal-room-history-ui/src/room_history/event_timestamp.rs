@@ -1,7 +1,7 @@
 use adw::subclass::prelude::*;
 use gtk::{glib, glib::clone, prelude::*};
 
-use crate::{Application, gettext_f, system_settings::ClockFormat};
+use crate::{gettext_f, system_settings::ClockFormat};
 
 mod imp {
     use std::cell::RefCell;
@@ -44,7 +44,7 @@ mod imp {
         fn constructed(&self) {
             self.parent_constructed();
 
-            let settings = Application::default().system_settings();
+            let settings = crate::system_settings::SystemSettings::shared();
             let handler = settings.connect_clock_format_notify(clone!(
                 #[weak(rename_to = imp)]
                 self,
@@ -57,7 +57,7 @@ mod imp {
 
         fn dispose(&self) {
             if let Some(handler) = self.settings_handler.take() {
-                Application::default().system_settings().disconnect(handler);
+                crate::system_settings::SystemSettings::shared().disconnect(handler);
             }
         }
     }
@@ -84,7 +84,7 @@ mod imp {
                 return;
             };
 
-            let clock_format = Application::default().system_settings().clock_format();
+            let clock_format = crate::system_settings::SystemSettings::shared().clock_format();
             let time = if clock_format == ClockFormat::TwelveHours {
                 datetime.format("%I:%M %p").unwrap()
             } else {

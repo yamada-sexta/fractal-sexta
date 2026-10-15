@@ -97,6 +97,13 @@ mod imp {
                 }
             });
 
+            factory.connect_unbind(|_, item| {
+                if let Some(item) = item.downcast_ref::<gtk::ListItem>()
+                    && let Some(media) = item.child().and_downcast::<VisualMediaItem>()
+                {
+                    media.set_event(None::<HistoryViewerEvent>);
+                }
+            });
             self.grid_view.set_factory(Some(&factory));
         }
     }
@@ -265,7 +272,7 @@ impl VisualMediaHistoryViewer {
     }
 
     /// Show the given media item in the media viewer.
-    pub(crate) fn show_media_viewer(&self, item: &VisualMediaItem) {
+    pub fn show_media_viewer(&self, item: &VisualMediaItem) {
         self.imp().show_media_viewer(item);
     }
 }

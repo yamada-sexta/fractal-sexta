@@ -109,7 +109,7 @@ impl MessageAudio {
     }
 
     /// Display the given `audio` message.
-    pub(crate) fn set_audio_message(&self, message: AudioPlayerMessage, format: ContentFormat) {
+    pub fn set_audio_message(&self, message: AudioPlayerMessage, format: ContentFormat) {
         self.imp().set_audio_message(message, format);
     }
 }

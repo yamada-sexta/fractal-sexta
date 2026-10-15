@@ -104,7 +104,7 @@ impl MessageCaption {
     }
 
     /// Set the caption.
-    pub(crate) fn set_caption(
+    pub fn set_caption(
         &self,
         caption: String,
         formatted_caption: Option<FormattedBody>,

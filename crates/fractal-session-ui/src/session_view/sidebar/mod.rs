@@ -480,7 +480,7 @@ impl Sidebar {
     }
 
     /// The search bar allowing to filter rooms in the sidebar.
-    pub(crate) fn room_search_bar(&self) -> gtk::SearchBar {
+    pub fn room_search_bar(&self) -> gtk::SearchBar {
         self.imp().room_search.clone()
     }
 
@@ -515,12 +515,12 @@ impl Sidebar {
     }
 
     /// The `AdwHeaderBar` of the sidebar.
-    pub(crate) fn header_bar(&self) -> &adw::HeaderBar {
+    pub fn header_bar(&self) -> &adw::HeaderBar {
         &self.imp().header_bar
     }
 
     /// Scroll to the currently selected item of the sidebar.
-    pub(crate) fn scroll_to_selection(&self) {
+    pub fn scroll_to_selection(&self) {
         self.imp().scroll_to_selection();
     }
 

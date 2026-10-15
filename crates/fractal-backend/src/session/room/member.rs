@@ -246,7 +246,7 @@ impl Member {
     }
 
     /// The power level of the member.
-    pub(crate) fn power_level(&self) -> UserPowerLevel {
+    pub fn power_level(&self) -> UserPowerLevel {
         self.imp().power_level.get()
     }
 
@@ -256,7 +256,7 @@ impl Member {
     }
 
     /// Update this member with the data from the given SDK's member.
-    pub(crate) fn update_from_room_member(&self, member: &RoomMember) {
+    pub fn update_from_room_member(&self, member: &RoomMember) {
         if member.user_id() != self.user_id() {
             error!("Tried Member update from RoomMember with wrong user ID.");
             return;
@@ -273,7 +273,7 @@ impl Member {
     }
 
     /// Update this member with data from the SDK.
-    pub(crate) fn update(&self) {
+    pub fn update(&self) {
         spawn!(clone!(
             #[weak(rename_to = obj)]
             self,
@@ -302,14 +302,14 @@ impl Member {
     }
 
     /// The IDs of the events sent by this member that can be redacted.
-    pub(crate) fn redactable_events(&self) -> Vec<OwnedEventId> {
+    pub fn redactable_events(&self) -> Vec<OwnedEventId> {
         self.room()
             .live_timeline()
             .redactable_events_for(self.user_id())
     }
 
     /// Whether this room member can notify the whole room.
-    pub(crate) fn can_notify_room(&self) -> bool {
+    pub fn can_notify_room(&self) -> bool {
         self.room().permissions().user_is_allowed_to(
             self.user_id(),
             PowerLevelAction::TriggerNotification(NotificationPowerLevelType::Room),
@@ -317,13 +317,13 @@ impl Member {
     }
 
     /// The string to use to search for this member.
-    pub(crate) fn search_string(&self) -> String {
+    pub fn search_string(&self) -> String {
         format!("{} {} {}", self.display_name(), self.user_id(), self.role())
     }
 
     /// Connect to the signal emitted when the power level of the member
     /// changed.
-    pub(crate) fn connect_power_level_changed<F: Fn(&Self) + 'static>(
+    pub fn connect_power_level_changed<F: Fn(&Self) + 'static>(
         &self,
         f: F,
     ) -> glib::SignalHandlerId {

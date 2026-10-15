@@ -699,22 +699,22 @@ impl IdentityVerification {
     }
 
     /// The unique identifying key of this verification.
-    pub(crate) fn key(&self) -> VerificationKey {
+    pub fn key(&self) -> VerificationKey {
         VerificationKey::from_request(self.imp().request())
     }
 
     /// Whether this is a self-verification.
-    pub(crate) fn is_self_verification(&self) -> bool {
+    pub fn is_self_verification(&self) -> bool {
         self.imp().request().is_self_verification()
     }
 
     /// Whether we started this verification.
-    pub(crate) fn started_by_us(&self) -> bool {
+    pub fn started_by_us(&self) -> bool {
         self.imp().request().we_started()
     }
 
     /// The ID of the other device that is being verified.
-    pub(crate) fn other_device_id(&self) -> Option<OwnedDeviceId> {
+    pub fn other_device_id(&self) -> Option<OwnedDeviceId> {
         let request_state = self.imp().request().state();
         let other_device_data = match &request_state {
             VerificationRequestState::Requested {
@@ -737,14 +737,14 @@ impl IdentityVerification {
     }
 
     /// Information about the verification cancellation, if any.
-    pub(crate) fn cancel_info(&self) -> Option<CancelInfo> {
+    pub fn cancel_info(&self) -> Option<CancelInfo> {
         self.imp().request().cancel_info()
     }
 
     /// Cancel the verification request.
     ///
     /// This can be used to decline the request or cancel it at any time.
-    pub(crate) async fn cancel(&self) -> Result<(), matrix_sdk::Error> {
+    pub async fn cancel(&self) -> Result<(), matrix_sdk::Error> {
         let request = self.imp().request().clone();
 
         if request.is_done() || request.is_passive() || request.is_cancelled() {
@@ -768,7 +768,7 @@ impl IdentityVerification {
     }
 
     /// Accept the verification request.
-    pub(crate) async fn accept(&self) -> Result<(), ()> {
+    pub async fn accept(&self) -> Result<(), ()> {
         let request = self.imp().request().clone();
 
         let VerificationRequestState::Requested { their_methods, .. } = request.state() else {
@@ -790,39 +790,39 @@ impl IdentityVerification {
     }
 
     /// Go back to the state to choose a verification method.
-    pub(crate) fn choose_method(&self) {
+    pub fn choose_method(&self) {
         self.imp().set_state(VerificationState::Ready);
     }
 
     /// Whether the current SAS verification supports emoji.
-    pub(crate) fn sas_supports_emoji(&self) -> bool {
+    pub fn sas_supports_emoji(&self) -> bool {
         self.imp()
             .sas_verification()
             .is_some_and(|v| v.supports_emoji())
     }
 
     /// The list of emojis for the current SAS verification, if any.
-    pub(crate) fn sas_emoji(&self) -> Option<[Emoji; 7]> {
+    pub fn sas_emoji(&self) -> Option<[Emoji; 7]> {
         self.imp().sas_verification()?.emoji()
     }
 
     /// The list of decimals for the current SAS verification, if any.
-    pub(crate) fn sas_decimals(&self) -> Option<(u16, u16, u16)> {
+    pub fn sas_decimals(&self) -> Option<(u16, u16, u16)> {
         self.imp().sas_verification()?.decimals()
     }
 
     /// The QR Code, if the `QrCodeShowV1` method is supported.
-    pub(crate) fn qr_code(&self) -> Option<QrCode> {
+    pub fn qr_code(&self) -> Option<QrCode> {
         self.imp().qr_code.borrow().clone()
     }
 
     /// Whether we have the QR code.
-    pub(crate) fn has_qr_code(&self) -> bool {
+    pub fn has_qr_code(&self) -> bool {
         self.imp().qr_code.borrow().is_some()
     }
 
     /// Start a QR Code scan.
-    pub(crate) async fn start_qr_code_scan(&self) -> Result<(), ()> {
+    pub async fn start_qr_code_scan(&self) -> Result<(), ()> {
         let imp = self.imp();
 
         match QrCodeScanner::new().await {
@@ -839,7 +839,7 @@ impl IdentityVerification {
     }
 
     /// The QR Code was scanned.
-    pub(crate) async fn qr_code_scanned(&self, data: QrVerificationData) -> Result<(), ()> {
+    pub async fn qr_code_scanned(&self, data: QrVerificationData) -> Result<(), ()> {
         let imp = self.imp();
         imp.set_state(VerificationState::QrScanned);
         let request = imp.request().clone();
@@ -860,7 +860,7 @@ impl IdentityVerification {
     }
 
     /// Confirm that the QR Code was scanned by the other party.
-    pub(crate) async fn confirm_qr_code_scanned(&self) -> Result<(), ()> {
+    pub async fn confirm_qr_code_scanned(&self) -> Result<(), ()> {
         let Some(qr_verification) = self.imp().qr_verification() else {
             error!("Cannot confirm QR Code scan without an ongoing QR verification");
             return Err(());
@@ -878,7 +878,7 @@ impl IdentityVerification {
     }
 
     /// Start a SAS verification.
-    pub(crate) async fn start_sas(&self) -> Result<(), ()> {
+    pub async fn start_sas(&self) -> Result<(), ()> {
         let request = self.imp().request().clone();
         let handle = spawn_tokio!(async move { request.start_sas().await });
 
@@ -896,7 +896,7 @@ impl IdentityVerification {
     }
 
     /// The SAS data does not match.
-    pub(crate) async fn sas_mismatch(&self) -> Result<(), ()> {
+    pub async fn sas_mismatch(&self) -> Result<(), ()> {
         let Some(sas_verification) = self.imp().sas_verification() else {
             error!("Cannot send SAS mismatch without an ongoing SAS verification");
             return Err(());
@@ -914,7 +914,7 @@ impl IdentityVerification {
     }
 
     /// The SAS data matches.
-    pub(crate) async fn sas_match(&self) -> Result<(), ()> {
+    pub async fn sas_match(&self) -> Result<(), ()> {
         let Some(sas_verification) = self.imp().sas_verification() else {
             error!("Cannot send SAS match without an ongoing SAS verification");
             return Err(());
@@ -932,7 +932,7 @@ impl IdentityVerification {
     }
 
     /// Restart this verification with a new one to the same user.
-    pub(crate) async fn restart(&self) -> Result<Self, ()> {
+    pub async fn restart(&self) -> Result<Self, ()> {
         let user = self.user();
         let verification_list = user.session().verification_list();
 
@@ -952,7 +952,7 @@ impl IdentityVerification {
     /// The verification can be dismissed.
     ///
     /// Also removes it from the verification list.
-    pub(crate) fn dismiss(&self) {
+    pub fn dismiss(&self) {
         self.remove_from_list();
         self.emit_by_name::<()>("dismiss", &[]);
     }
@@ -962,7 +962,7 @@ impl IdentityVerification {
     /// You will usually want to use [`IdentityVerification::dismiss()`] because
     /// the interface listens for the signal it emits, and it calls this method
     /// internally.
-    pub(crate) fn remove_from_list(&self) {
+    pub fn remove_from_list(&self) {
         self.emit_by_name::<()>("remove-from-list", &[]);
     }
 

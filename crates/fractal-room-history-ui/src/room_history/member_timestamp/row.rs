@@ -3,9 +3,7 @@ use gettextrs::gettext;
 use gtk::{glib, glib::clone};
 
 use super::MemberTimestamp;
-use crate::{
-    Application, system_settings::ClockFormat, utils::matrix::seconds_since_unix_epoch_to_date,
-};
+use crate::{system_settings::ClockFormat, utils::matrix::seconds_since_unix_epoch_to_date};
 
 mod imp {
     use std::cell::RefCell;
@@ -48,7 +46,7 @@ mod imp {
         fn constructed(&self) {
             self.parent_constructed();
 
-            let system_settings = Application::default().system_settings();
+            let system_settings = crate::system_settings::SystemSettings::shared();
             let system_settings_handler = system_settings.connect_clock_format_notify(clone!(
                 #[weak(rename_to = imp)]
                 self,
@@ -62,7 +60,7 @@ mod imp {
 
         fn dispose(&self) {
             if let Some(handler) = self.system_settings_handler.take() {
-                Application::default().system_settings().disconnect(handler);
+                crate::system_settings::SystemSettings::shared().disconnect(handler);
             }
         }
     }
@@ -99,7 +97,7 @@ mod imp {
             let timestamp = timestamp.try_into().unwrap_or(i64::MAX);
             let datetime = seconds_since_unix_epoch_to_date(timestamp);
 
-            let clock_format = Application::default().system_settings().clock_format();
+            let clock_format = crate::system_settings::SystemSettings::shared().clock_format();
 
             let format = if clock_format == ClockFormat::TwelveHours {
                 // Translators: this is a date and a time in 12h format.

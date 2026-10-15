@@ -280,12 +280,12 @@ impl PowerLevelSelectionRow {
     }
 
     /// The selected power level.
-    pub(crate) fn selected_power_level(&self) -> UserPowerLevel {
+    pub fn selected_power_level(&self) -> UserPowerLevel {
         self.imp().selected_power_level.get()
     }
 
     /// Set the selected power level.
-    pub(crate) fn set_selected_power_level(&self, power_level: UserPowerLevel) {
+    pub fn set_selected_power_level(&self, power_level: UserPowerLevel) {
         self.imp().set_selected_power_level(power_level);
     }
 

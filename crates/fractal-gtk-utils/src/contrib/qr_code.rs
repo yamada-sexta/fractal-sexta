@@ -4,7 +4,7 @@
 use gettextrs::gettext;
 use gtk::{glib, prelude::*, subclass::prelude::*};
 
-pub(crate) mod imp {
+pub mod imp {
     use std::cell::{Cell, RefCell};
 
     use gtk::{gdk, graphene};

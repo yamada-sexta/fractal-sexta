@@ -402,10 +402,10 @@ impl CheckCmd {
     /// This assumes the following:
     ///
     /// - The POTFILES are located at `po/POTFILES.(in/skip)`.
-    /// - UI (GtkBuilder) files are located under `src` and use
+    /// - UI (GtkBuilder) files are located under `crates` and use
     ///   `translatable="yes"`.
-    /// - Blueprint files are located under `src` and use `_(`.
-    /// - Rust files are located under `src` and use `*gettext(_f)` methods.
+    /// - Blueprint files are located under `crates` and use `_(`.
+    /// - Rust files are located under `crates` and use `*gettext(_f)` methods.
     fn potfiles(&self) -> Result<(), ScriptError> {
         let base_dir = Path::new(WORKSPACE_DIR);
 
@@ -442,7 +442,7 @@ impl CheckCmd {
         let mut translatable_blp = BTreeSet::new();
         let mut translatable_rs = BTreeSet::new();
 
-        visit_dir(&base_dir.join("src"), &mut |path| {
+        visit_dir(&base_dir.join("crates"), &mut |path| {
             if potfiles_skip.contains(&path) {
                 return;
             }
@@ -550,28 +550,30 @@ impl CheckCmd {
         translatable_files_check.end()
     }
 
-    /// Check `src/ui-blueprint-resources.in`.
+    /// Check `crates/fractal-app/src/ui-blueprint-resources.in`.
     ///
     /// Checks that the files exist and are sorted alphabetically.
     fn blueprints(&self) -> Result<(), ScriptError> {
-        let base_dir = Path::new(WORKSPACE_DIR).join("src");
+        let base_dir = Path::new(WORKSPACE_DIR).join("crates/fractal-app/src");
 
         if self.staged_files.as_ref().is_some_and(|staged_files| {
-            !staged_files.any(|file| file == "src/ui-blueprint-resources.in")
+            !staged_files.any(|file| file == "crates/fractal-app/src/ui-blueprint-resources.in")
         }) {
             // No check necessary.
             return Ok(());
         }
 
-        let files_exist_check = Check::start("files exist in src/ui-blueprint-resources.in");
+        let files_exist_check =
+            Check::start("files exist in crates/fractal-app/src/ui-blueprint-resources.in");
         let Ok(blueprint_files) = load_files(&base_dir, Path::new("ui-blueprint-resources.in"))
         else {
             return files_exist_check.fail();
         };
         files_exist_check.end()?;
 
-        let files_order_check =
-            Check::start("files are ordered alphabetically in src/ui-blueprint-resources.in");
+        let files_order_check = Check::start(
+            "files are ordered alphabetically in crates/fractal-app/src/ui-blueprint-resources.in",
+        );
         if check_files_sorted(&base_dir, &blueprint_files).is_err() {
             return files_order_check.fail();
         }
@@ -664,7 +666,7 @@ impl CheckCmd {
 
         let output = CommandData::new(
             "cargo",
-            &["sort", "--check", "--grouped", "--order", "workspace,package,lib,profile,features,dependencies,target,dev-dependencies,build-dependencies"]
+            &["sort", "--check", "--workspace", "--grouped", "--order", "workspace,package,lib,profile,features,dependencies,target,dev-dependencies,build-dependencies"]
         ).print_output().run()?;
 
         check.merge_output(output);

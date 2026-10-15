@@ -69,7 +69,7 @@ mod imp {
 
             let added = if let Some(model) = model {
                 let items_changed_handler = model.connect_items_changed(clone!(
-                    #[strong]
+                    #[weak]
                     obj,
                     move |_, pos, removed, added| {
                         obj.imp().watch_items(pos, removed, added);
@@ -80,7 +80,7 @@ mod imp {
                 let added = model.n_items();
                 self.model.set(model, vec![items_changed_handler]);
 
-                self.watch_items(0, removed, added);
+                self.watch_items(0, 0, added);
                 added
             } else {
                 0
@@ -100,7 +100,7 @@ mod imp {
             self.expressions.replace(expressions);
 
             let n_items = self.n_items();
-            self.watch_items(0, n_items, n_items);
+            self.watch_items(0, 0, n_items);
         }
 
         /// Watch and unwatch items according to changes in the underlying
@@ -128,7 +128,7 @@ mod imp {
                     item_watches.push(expression.watch(
                         Some(&item),
                         clone!(
-                            #[strong]
+                            #[weak]
                             obj,
                             #[weak]
                             item,
@@ -174,7 +174,7 @@ impl ExpressionListModel {
     }
 
     /// Set the expressions to watch.
-    pub(crate) fn set_expressions(&self, expressions: Vec<gtk::Expression>) {
+    pub fn set_expressions(&self, expressions: Vec<gtk::Expression>) {
         self.imp().set_expressions(expressions);
     }
 }
@@ -182,5 +182,33 @@ impl ExpressionListModel {
 impl Default for ExpressionListModel {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[gtk::test]
+    fn watches_do_not_keep_model_alive() {
+        let action = gio::SimpleAction::new("test", None);
+        let source = gio::ListStore::new::<gio::SimpleAction>();
+        source.append(&action);
+        let model = ExpressionListModel::new();
+        let expression = gio::SimpleAction::this_expression("enabled");
+        model.set_expressions(vec![expression.clone().upcast()]);
+        model.set_model(Some(source.clone()));
+        model.set_expressions(vec![expression.upcast()]);
+        let replacement = gio::ListStore::new::<gio::SimpleAction>();
+        let other = gio::SimpleAction::new("replacement", None);
+        replacement.append(&other);
+        model.set_model(Some(replacement));
+        assert_eq!(model.n_items(), 1);
+        assert_eq!(model.item(0), Some(other.clone().upcast()));
+        let weak = model.downgrade();
+        drop(model);
+        assert!(weak.upgrade().is_none());
+        action.set_enabled(false);
+        source.remove_all();
     }
 }

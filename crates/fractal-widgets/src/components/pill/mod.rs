@@ -1,9 +1,8 @@
 use adw::{prelude::*, subclass::prelude::*};
+pub use fractal_backend::components::pill::at_room;
 use gtk::{glib, glib::clone};
-
-mod at_room;
 mod search_entry;
-mod source;
+pub use fractal_backend::components::pill::source;
 mod source_row;
 
 pub use self::{
@@ -16,7 +15,6 @@ use super::{Avatar, AvatarImageSafetySetting, RoomPreviewDialog, UserProfileDial
 use crate::{
     prelude::*,
     session::{Member, RemoteRoom, Room},
-    session_view::SessionView,
     utils::{BoundObject, key_bindings},
 };
 
@@ -228,14 +226,7 @@ mod imp {
                 dialog.set_room_member(member.clone());
                 dialog.present(Some(&*obj));
             } else if let Some(room) = source.downcast_ref::<Room>() {
-                let Some(session_view) = obj
-                    .ancestor(SessionView::static_type())
-                    .and_downcast::<SessionView>()
-                else {
-                    return;
-                };
-
-                session_view.select_room(room.clone());
+                crate::navigation::show_room(room);
             } else if let Some(room) = source.downcast_ref::<RemoteRoom>() {
                 let Some(session) = room.session() else {
                     return;
@@ -284,3 +275,10 @@ impl Pill {
             .build()
     }
 }
+
+pub trait PillWidgetExt: IsA<PillSource> {
+    fn to_pill(&self, setting: AvatarImageSafetySetting, room: Option<Room>) -> Pill {
+        Pill::new(self, setting, room)
+    }
+}
+impl<T: IsA<PillSource>> PillWidgetExt for T {}

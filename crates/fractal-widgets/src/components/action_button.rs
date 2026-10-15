@@ -191,7 +191,7 @@ impl ActionButton {
     }
 
     /// Set the extra CSS classes applied to the button in the default state.
-    pub(crate) fn set_extra_classes(&self, classes: &[&'static str]) {
+    pub fn set_extra_classes(&self, classes: &[&'static str]) {
         self.imp().set_extra_classes(classes);
     }
 

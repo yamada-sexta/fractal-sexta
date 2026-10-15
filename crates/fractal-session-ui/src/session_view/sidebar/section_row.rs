@@ -235,12 +235,12 @@ impl SidebarSectionRow {
     }
 
     /// Set the room category to show the label for.
-    pub(crate) fn set_show_label_for_room_category(&self, category: Option<RoomCategory>) {
+    pub fn set_show_label_for_room_category(&self, category: Option<RoomCategory>) {
         self.imp().set_show_label_for_room_category(category);
     }
 
     /// The descendant that labels this row for a11y.
-    pub(crate) fn labelled_by(&self) -> &gtk::Accessible {
+    pub fn labelled_by(&self) -> &gtk::Accessible {
         self.imp().display_name.upcast_ref()
     }
 }

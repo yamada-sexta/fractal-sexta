@@ -29,7 +29,7 @@ use crate::{
 
 /// A subpage of the account settings.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, glib::Variant)]
-pub(crate) enum AccountSettingsSubpage {
+pub enum AccountSettingsSubpage {
     /// A form to change the account's password.
     ChangePassword,
     /// A page to view the list of account's sessions.
@@ -249,12 +249,12 @@ impl AccountSettings {
     }
 
     /// Show the "Encryption" tab.
-    pub(crate) fn show_encryption_tab(&self) {
+    pub fn show_encryption_tab(&self) {
         self.set_visible_page_name("encryption");
     }
 
     /// Show the given subpage.
-    pub(crate) fn show_subpage(&self, subpage: AccountSettingsSubpage) {
+    pub fn show_subpage(&self, subpage: AccountSettingsSubpage) {
         let Some(session) = self.session() else {
             return;
         };
@@ -329,7 +329,7 @@ impl AccountSettings {
     }
 
     /// Show a subpage with the session details of the given session ID.
-    pub(crate) fn show_session_subpage(&self, device_id: &str) {
+    pub fn show_session_subpage(&self, device_id: &str) {
         let Some(session) = self.session() else {
             return;
         };

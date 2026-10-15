@@ -6,7 +6,6 @@ use adw::prelude::*;
 
 use super::freplace;
 use crate::{
-    Window,
     components::{LabelWithWidgets, Pill, ToastableDialog},
     prelude::*,
 };
@@ -127,7 +126,7 @@ macro_rules! _toast_accum {
     // `@var = val` syntax, with a trailing comma or other vars after.
     ([$($string_vars:tt)*], [$($pill_vars:tt)*], @$var:ident = $val:expr, $($tail:tt)*) => {
         {
-            use $crate::components::PillSourceExt;
+            use $crate::components::PillWidgetExt;
             // We do not need to watch safety settings for pills, rooms will be watched
             // automatically.
             let pill: $crate::components::Pill = $val.to_pill($crate::components::AvatarImageSafetySetting::None, None);
@@ -137,7 +136,7 @@ macro_rules! _toast_accum {
     // `@var` syntax, with or without a trailing comma and other vars after.
     ([$($string_vars:tt)*], [$($pill_vars:tt)*], @$var:ident $($tail:tt)*) => {
         {
-            use $crate::components::PillSourceExt;
+            use $crate::components::PillWidgetExt;
             // We do not need to watch safety settings for pills, rooms will be watched
             // automatically.
             let pill: $crate::components::Pill = $var.to_pill($crate::components::AvatarImageSafetySetting::None, None);
@@ -156,7 +155,7 @@ macro_rules! _toast_accum {
 /// - `AdwPreferencesDialog`
 /// - `AdwPreferencesWindow`
 /// - `Window`
-pub(crate) fn add_toast(widget: &gtk::Widget, toast: adw::Toast) {
+pub fn add_toast(widget: &gtk::Widget, toast: adw::Toast) {
     if let Some(dialog) = widget
         .ancestor(ToastableDialog::static_type())
         .and_downcast::<ToastableDialog>()
@@ -173,8 +172,11 @@ pub(crate) fn add_toast(widget: &gtk::Widget, toast: adw::Toast) {
         if let Some(window) = root.downcast_ref::<adw::PreferencesWindow>() {
             use adw::prelude::PreferencesWindowExt;
             window.add_toast(toast);
-        } else if let Some(window) = root.downcast_ref::<Window>() {
-            window.add_toast(toast);
+        } else if let Some(overlay) = widget
+            .ancestor(adw::ToastOverlay::static_type())
+            .and_downcast::<adw::ToastOverlay>()
+        {
+            overlay.add_toast(toast);
         } else {
             panic!("Trying to display a toast when the parent doesn't support it");
         }
@@ -190,7 +192,7 @@ pub(crate) fn add_toast(widget: &gtk::Widget, toast: adw::Toast) {
 /// - `AdwPreferencesDialog`
 /// - `AdwPreferencesWindow`
 /// - `Window`
-pub(crate) fn add_toast_with_vars(
+pub fn add_toast_with_vars(
     widget: &gtk::Widget,
     message: &str,
     string_vars: &[(&str, String)],

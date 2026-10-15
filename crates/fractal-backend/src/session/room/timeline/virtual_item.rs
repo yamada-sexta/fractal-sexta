@@ -6,7 +6,7 @@ use crate::utils::matrix::timestamp_to_date;
 
 /// The kind of virtual item.
 #[derive(Debug, Default, Clone, Eq, PartialEq)]
-pub(crate) enum VirtualItemKind {
+pub enum VirtualItemKind {
     /// A spinner, when the timeline is loading.
     #[default]
     Spinner,
@@ -96,28 +96,24 @@ impl VirtualItem {
     }
 
     /// Create a new `VirtualItem` from a virtual timeline item.
-    pub(crate) fn with_item(
-        timeline: &Timeline,
-        item: &VirtualTimelineItem,
-        timeline_id: &str,
-    ) -> Self {
+    pub fn with_item(timeline: &Timeline, item: &VirtualTimelineItem, timeline_id: &str) -> Self {
         let kind = VirtualItemKind::with_item(item);
         Self::new(timeline, kind, timeline_id)
     }
 
     /// The kind of virtual item.
-    pub(crate) fn kind(&self) -> VirtualItemKind {
+    pub fn kind(&self) -> VirtualItemKind {
         self.imp().kind()
     }
 
     /// Update this `VirtualItem` with the given virtual timeline item.
-    pub(crate) fn update_with_item(&self, item: &VirtualTimelineItem) {
+    pub fn update_with_item(&self, item: &VirtualTimelineItem) {
         let kind = VirtualItemKind::with_item(item);
         self.imp().set_kind(kind);
     }
 
     /// Create a spinner virtual item.
-    pub(crate) fn spinner(timeline: &Timeline) -> Self {
+    pub fn spinner(timeline: &Timeline) -> Self {
         Self::new(
             timeline,
             VirtualItemKind::Spinner,
@@ -126,7 +122,7 @@ impl VirtualItem {
     }
 
     /// Create a typing virtual item.
-    pub(crate) fn typing(timeline: &Timeline) -> Self {
+    pub fn typing(timeline: &Timeline) -> Self {
         Self::new(timeline, VirtualItemKind::Typing, "VirtualItemKind::Typing")
     }
 

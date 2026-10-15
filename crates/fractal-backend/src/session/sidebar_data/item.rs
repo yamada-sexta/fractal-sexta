@@ -183,10 +183,7 @@ impl SidebarItem {
 
     /// Update the visibility of this item for the drag-n-drop of a room with
     /// the given category.
-    pub(crate) fn update_visibility_for_room_category(
-        &self,
-        source_category: Option<RoomCategory>,
-    ) {
+    pub fn update_visibility_for_room_category(&self, source_category: Option<RoomCategory>) {
         let inner_item = self.inner_item();
         let visible = if let Some(section) = inner_item.downcast_ref::<SidebarSection>() {
             section.visible_for_room_category(source_category)

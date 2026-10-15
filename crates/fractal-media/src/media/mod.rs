@@ -9,9 +9,9 @@ use ruma::UInt;
 
 use crate::utils::OneshotNotifier;
 
-pub(crate) mod audio;
-pub(crate) mod image;
-pub(crate) mod video;
+pub mod audio;
+pub mod image;
+pub mod video;
 
 /// Get a default filename for a mime type.
 ///
@@ -20,7 +20,7 @@ pub(crate) mod video;
 /// If the mime type is unknown, it uses the name for `fallback`. The fallback
 /// mime types that are recognized are `mime::IMAGE`, `mime::VIDEO` and
 /// `mime::AUDIO`, other values will behave the same as `None`.
-pub(crate) fn filename_for_mime(mime_type: Option<&str>, fallback: Option<mime::Name>) -> String {
+pub fn filename_for_mime(mime_type: Option<&str>, fallback: Option<mime::Name>) -> String {
     let (type_, extension) =
         if let Some(mime) = mime_type.and_then(|m| m.parse::<mime::Mime>().ok()) {
             let extension =
@@ -48,18 +48,18 @@ pub(crate) fn filename_for_mime(mime_type: Option<&str>, fallback: Option<mime::
 }
 
 /// Information about a file.
-pub(crate) struct FileInfo {
+pub struct FileInfo {
     /// The mime type of the file.
-    pub(crate) mime: Mime,
+    pub mime: Mime,
     /// The name of the file.
-    pub(crate) filename: String,
+    pub filename: String,
     /// The size of the file in bytes.
-    pub(crate) size: Option<u32>,
+    pub size: Option<u32>,
 }
 
 impl FileInfo {
     /// Try to load information about the given file.
-    pub(crate) async fn try_from_file(file: &gio::File) -> Result<FileInfo, glib::Error> {
+    pub async fn try_from_file(file: &gio::File) -> Result<FileInfo, glib::Error> {
         let attributes: &[&str] = &[
             gio::FILE_ATTRIBUTE_STANDARD_CONTENT_TYPE,
             gio::FILE_ATTRIBUTE_STANDARD_DISPLAY_NAME,
@@ -121,7 +121,7 @@ async fn load_gstreamer_media_info(file: &gio::File) -> Option<gst_pbutils::Disc
 /// All errors that can occur when downloading a media to a file.
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
-pub(crate) enum MediaFileError {
+pub enum MediaFileError {
     /// An error occurred when downloading the media.
     Sdk(#[from] matrix_sdk::Error),
     /// An error occurred when writing the media to a file.
@@ -134,17 +134,17 @@ pub(crate) enum MediaFileError {
 }
 
 /// The dimensions of a frame.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct FrameDimensions {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct FrameDimensions {
     /// The width of the frame.
-    pub(crate) width: u32,
+    pub width: u32,
     /// The height of the frame.
-    pub(crate) height: u32,
+    pub height: u32,
 }
 
 impl FrameDimensions {
     /// Construct a `FrameDimensions` from the given optional dimensions.
-    pub(crate) fn from_options(width: Option<UInt>, height: Option<UInt>) -> Option<Self> {
+    pub fn from_options(width: Option<UInt>, height: Option<UInt>) -> Option<Self> {
         Some(Self {
             width: width?.try_into().ok()?,
             height: height?.try_into().ok()?,
@@ -152,7 +152,7 @@ impl FrameDimensions {
     }
 
     /// Get the dimension for the given orientation.
-    pub(crate) fn dimension_for_orientation(self, orientation: gtk::Orientation) -> u32 {
+    pub fn dimension_for_orientation(self, orientation: gtk::Orientation) -> u32 {
         match orientation {
             gtk::Orientation::Vertical => self.height,
             _ => self.width,
@@ -160,7 +160,7 @@ impl FrameDimensions {
     }
 
     /// Get the dimension for the other orientation than the given one.
-    pub(crate) fn dimension_for_other_orientation(self, orientation: gtk::Orientation) -> u32 {
+    pub fn dimension_for_other_orientation(self, orientation: gtk::Orientation) -> u32 {
         match orientation {
             gtk::Orientation::Vertical => self.width,
             _ => self.height,
@@ -172,19 +172,19 @@ impl FrameDimensions {
     ///
     /// Returns `true` if either `width` or `height` is bigger than or equal to
     /// the one in the other dimensions.
-    pub(crate) fn ge(self, other: Self) -> bool {
+    pub fn ge(self, other: Self) -> bool {
         self.width >= other.width || self.height >= other.height
     }
 
     /// Increase both of these dimensions by the given value.
-    pub(crate) const fn increase_by(mut self, value: u32) -> Self {
+    pub const fn increase_by(mut self, value: u32) -> Self {
         self.width = self.width.saturating_add(value);
         self.height = self.height.saturating_add(value);
         self
     }
 
     /// Scale these dimensions with the given factor.
-    pub(crate) const fn scale(mut self, factor: u32) -> Self {
+    pub const fn scale(mut self, factor: u32) -> Self {
         self.width = self.width.saturating_mul(factor);
         self.height = self.height.saturating_mul(factor);
         self
@@ -192,7 +192,7 @@ impl FrameDimensions {
 
     /// Scale these dimensions to fit into the requested dimensions while
     /// preserving the aspect ratio and respecting the given content fit.
-    pub(crate) fn scale_to_fit(self, requested: Self, content_fit: gtk::ContentFit) -> Self {
+    pub fn scale_to_fit(self, requested: Self, content_fit: gtk::ContentFit) -> Self {
         let w_ratio = f64::from(self.width) / f64::from(requested.width);
         let h_ratio = f64::from(self.height) / f64::from(requested.height);
 
@@ -231,7 +231,7 @@ impl FrameDimensions {
 
 /// Get the string representation of the given elapsed time to present it in a
 /// media player.
-pub(crate) fn time_to_label(time: &Duration) -> String {
+pub fn time_to_label(time: &Duration) -> String {
     let mut time = time.as_secs();
 
     let sec = time % 60;

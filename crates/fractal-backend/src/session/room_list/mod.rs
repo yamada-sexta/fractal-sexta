@@ -388,27 +388,27 @@ impl RoomList {
     }
 
     /// Load the list of rooms from the `Store`.
-    pub(crate) async fn load(&self) {
+    pub async fn load(&self) {
         self.imp().load().await;
     }
 
     /// Get a snapshot of the rooms list.
-    pub(crate) fn snapshot(&self) -> Vec<Room> {
+    pub fn snapshot(&self) -> Vec<Room> {
         self.imp().list.borrow().values().cloned().collect()
     }
 
     /// Whether we are currently joining the room with the given identifier.
-    pub(crate) fn is_joining_room(&self, identifier: &RoomOrAliasId) -> bool {
+    pub fn is_joining_room(&self, identifier: &RoomOrAliasId) -> bool {
         self.imp().joining_rooms.borrow().contains(identifier)
     }
 
     /// Get the room with the given room ID, if any.
-    pub(crate) fn get(&self, room_id: &RoomId) -> Option<Room> {
+    pub fn get(&self, room_id: &RoomId) -> Option<Room> {
         self.imp().get(room_id)
     }
 
     /// Get the room with the given identifier, if any.
-    pub(crate) fn get_by_identifier(&self, identifier: &RoomOrAliasId) -> Option<Room> {
+    pub fn get_by_identifier(&self, identifier: &RoomOrAliasId) -> Option<Room> {
         let room_alias = match <&RoomId>::try_from(identifier) {
             Ok(room_id) => return self.get(room_id),
             Err(room_alias) => room_alias,
@@ -462,11 +462,7 @@ impl RoomList {
     }
 
     /// Wait till the room with the given ID becomes available.
-    pub(crate) async fn get_wait(
-        &self,
-        room_id: &RoomId,
-        timeout: Option<Duration>,
-    ) -> Option<Room> {
+    pub async fn get_wait(&self, room_id: &RoomId, timeout: Option<Duration>) -> Option<Room> {
         if let Some(room) = self.get(room_id) {
             return Some(room);
         }
@@ -514,7 +510,7 @@ impl RoomList {
     /// ID.
     ///
     /// If several rooms are found, returns the room with the latest activity.
-    pub(crate) fn direct_chat(&self, user_id: &UserId) -> Option<Room> {
+    pub fn direct_chat(&self, user_id: &UserId) -> Option<Room> {
         self.imp()
             .list
             .borrow()
@@ -530,17 +526,17 @@ impl RoomList {
 
     /// Add a room that was tombstoned but for which we haven't joined the
     /// successor yet.
-    pub(crate) fn add_tombstoned_room(&self, room_id: OwnedRoomId) {
+    pub fn add_tombstoned_room(&self, room_id: OwnedRoomId) {
         self.imp().add_tombstoned_room(room_id);
     }
 
     /// Handle room updates received via sync.
-    pub(crate) fn handle_room_updates(&self, rooms: RoomUpdates) {
+    pub fn handle_room_updates(&self, rooms: RoomUpdates) {
         self.imp().handle_room_updates(rooms);
     }
 
     /// Join the room with the given identifier.
-    pub(crate) async fn join_by_id_or_alias(
+    pub async fn join_by_id_or_alias(
         &self,
         identifier: OwnedRoomOrAliasId,
         via: Vec<OwnedServerName>,
@@ -549,7 +545,7 @@ impl RoomList {
     }
 
     /// Request an invite to the room with the given identifier.
-    pub(crate) async fn knock(
+    pub async fn knock(
         &self,
         identifier: OwnedRoomOrAliasId,
         via: Vec<OwnedServerName>,

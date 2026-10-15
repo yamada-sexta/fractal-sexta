@@ -123,12 +123,12 @@ impl UserProfileDialog {
     }
 
     /// Load the user with the given session and user ID.
-    pub(crate) fn load_user(&self, session: &Session, user_id: OwnedUserId) {
+    pub fn load_user(&self, session: &Session, user_id: OwnedUserId) {
         self.imp().load_user(session, user_id);
     }
 
     /// Set the member to present.
-    pub(crate) fn set_room_member(&self, member: Member) {
+    pub fn set_room_member(&self, member: Member) {
         self.imp().set_room_member(member);
     }
 }

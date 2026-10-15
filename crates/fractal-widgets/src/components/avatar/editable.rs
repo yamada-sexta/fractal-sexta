@@ -471,24 +471,24 @@ impl EditableAvatar {
     }
 
     /// Reset the state of the avatar.
-    pub(crate) fn reset(&self) {
+    pub fn reset(&self) {
         self.imp().set_state(EditableAvatarState::Default);
     }
 
     /// Show that an edit is in progress.
-    pub(crate) fn edit_in_progress(&self) {
+    pub fn edit_in_progress(&self) {
         self.imp().set_state(EditableAvatarState::EditInProgress);
     }
 
     /// Show that a removal is in progress.
-    pub(crate) fn removal_in_progress(&self) {
+    pub fn removal_in_progress(&self) {
         self.imp().set_state(EditableAvatarState::RemovalInProgress);
     }
 
     /// Show that the current ongoing action was successful.
     ///
     /// This is has no effect if no action is ongoing.
-    pub(crate) fn success(&self) {
+    pub fn success(&self) {
         let imp = self.imp();
         if imp.edit_state() == ActionState::Loading {
             imp.set_state(EditableAvatarState::EditSuccessful);

@@ -1,0 +1,35 @@
+[package]
+name = "fractal"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[target.'cfg(target_os = "linux")'.dependencies]
+aperture.workspace = true
+
+[package.metadata.cargo-machete]
+ignored = ["serde_bytes"]
+
+[dependencies]
+adw.workspace = true
+gettext-rs.workspace = true
+gst.workspace = true
+gtk.workspace = true
+serde_bytes.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+fractal-accounts-ui = { path = "../fractal-accounts-ui" }
+fractal-backend = { path = "../fractal-backend" }
+fractal-config = { path = "../fractal-config" }
+fractal-core = { path = "../fractal-core" }
+fractal-gtk-utils = { path = "../fractal-gtk-utils" }
+fractal-session-ui = { path = "../fractal-session-ui" }
+fractal-verification-ui = { path = "../fractal-verification-ui" }
+fractal-widgets = { path = "../fractal-widgets" }
+
+[lints]
+workspace = true

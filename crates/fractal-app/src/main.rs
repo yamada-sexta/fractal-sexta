@@ -4,46 +4,26 @@
 )]
 #![recursion_limit = "256"]
 
-mod account_chooser_dialog;
-mod account_switcher;
 mod application;
-mod components;
-#[rustfmt::skip]
 mod config;
-mod account_settings;
-mod contrib;
 mod error_page;
-mod i18n;
-mod identity_verification_view;
-mod intent;
-mod login;
-mod prelude;
-mod secret;
-mod session;
-mod session_list;
-mod session_view;
-mod system_settings;
-mod user_facing_error;
-mod utils;
 mod window;
-
-use std::sync::LazyLock;
-
+pub use application::*;
+pub use config::*;
+pub use fractal_accounts_ui::{account_chooser_dialog, account_settings, login};
+pub use fractal_backend::{intent, secret, session, session_list};
+pub use fractal_core::{
+    MEDIA_FILE_NOTIFIER, RUNTIME, gettext_f, i18n, ngettext_f, spawn, spawn_tokio,
+    user_facing_error,
+};
+pub use fractal_gtk_utils::{contrib, system_settings};
+pub use fractal_session_ui::session_view;
+pub use fractal_verification_ui::identity_verification_view;
+pub use fractal_widgets::{account_switcher, components, prelude, toast, utils};
 use gettextrs::*;
 use gtk::{IconTheme, gdk::Display, gio};
 use tracing_subscriber::{EnvFilter, fmt, prelude::*};
-
-use self::{application::*, config::*, i18n::*, utils::OneshotNotifier, window::Window};
-
-/// The default tokio runtime to be used for async tasks
-static RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
-    tokio::runtime::Runtime::new().expect("creating tokio runtime should succeed")
-});
-
-/// The notifier to make sure that only one `GtkMediaFile` is played at a single
-/// time.
-static MEDIA_FILE_NOTIFIER: LazyLock<OneshotNotifier> =
-    LazyLock::new(|| OneshotNotifier::new("MEDIA_FILE_NOTIFIER"));
+pub use window::Window;
 
 fn main() {
     // Initialize logger, debug is carried out via debug!, info!, warn! and error!.

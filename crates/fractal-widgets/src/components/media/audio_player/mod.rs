@@ -510,7 +510,7 @@ impl AudioPlayer {
     }
 
     /// Set the source to play.
-    pub(crate) fn set_source(&self, source: Option<AudioPlayerSource>) {
+    pub fn set_source(&self, source: Option<AudioPlayerSource>) {
         self.imp().set_source(source);
     }
 }
@@ -523,7 +523,7 @@ impl Default for AudioPlayer {
 
 /// The possible sources accepted by the audio player.
 #[derive(Debug, Clone)]
-pub(crate) enum AudioPlayerSource {
+pub enum AudioPlayerSource {
     /// An audio file.
     File(gio::File),
     /// An audio message.
@@ -591,26 +591,22 @@ impl AudioPlayerSource {
 
 /// The data required to play an audio message.
 #[derive(Debug, Clone)]
-pub(crate) struct AudioPlayerMessage {
+pub struct AudioPlayerMessage {
     /// The audio message.
-    pub(crate) message: MediaMessage,
+    pub message: MediaMessage,
     /// The session that will be used to load the file.
-    pub(crate) session: glib::WeakRef<Session>,
+    pub session: glib::WeakRef<Session>,
     /// The cache key for the audio message.
     ///
     /// The audio is only reloaded if the cache key changes. This is to
     /// avoid reloading the audio when the local echo is updated to a remote
     /// echo.
-    pub(crate) cache_key: MessageCacheKey,
+    pub cache_key: MessageCacheKey,
 }
 
 impl AudioPlayerMessage {
     /// Construct a new `AudioPlayerMessage`.
-    pub(crate) fn new(
-        message: MediaMessage,
-        session: &Session,
-        cache_key: MessageCacheKey,
-    ) -> Self {
+    pub fn new(message: MediaMessage, session: &Session, cache_key: MessageCacheKey) -> Self {
         let session_weak = glib::WeakRef::new();
         session_weak.set(Some(session));
 

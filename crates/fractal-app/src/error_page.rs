@@ -117,12 +117,12 @@ impl ErrorPage {
     }
 
     /// Display the given secret error.
-    pub(crate) fn display_secret_error(&self, message: &str) {
+    pub fn display_secret_error(&self, message: &str) {
         self.imp().display_secret_error(message);
     }
 
     /// Display the given session error.
-    pub(crate) fn display_session_error(&self, message: &str) {
+    pub fn display_session_error(&self, message: &str) {
         self.imp().display_session_error(message);
     }
 }

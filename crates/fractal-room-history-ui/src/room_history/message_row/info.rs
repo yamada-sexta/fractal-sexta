@@ -3,7 +3,7 @@ use gtk::glib;
 
 /// The icon to use for this message.
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum MessageInfoIcon {
+pub enum MessageInfoIcon {
     Info,
     Warning,
 }
@@ -74,7 +74,7 @@ impl MessageInfo {
     }
 
     /// Sets the necessary info for this message.
-    pub(crate) fn set_info(&self, icon: MessageInfoIcon, text: &str) {
+    pub fn set_info(&self, icon: MessageInfoIcon, text: &str) {
         self.imp().set_info(icon, text);
     }
 }

@@ -1,9 +1,8 @@
-use gtk::{glib, prelude::*, subclass::prelude::*};
+use gtk::{gio, glib, prelude::*, subclass::prelude::*};
 use indexmap::{IndexMap, IndexSet};
 use tracing::error;
 
 use crate::{
-    Application,
     secret::SESSION_ID_LENGTH,
     session::{SessionSettings, StoredSessionSettings},
 };
@@ -17,6 +16,7 @@ mod imp {
     pub struct SessionListSettings {
         /// The settings of the sessions.
         pub(super) sessions: RefCell<IndexMap<String, SessionSettings>>,
+        pub(super) store: RefCell<Option<gio::Settings>>,
     }
 
     #[glib::object_subclass]
@@ -34,14 +34,25 @@ glib::wrapper! {
 }
 
 impl SessionListSettings {
+    pub fn set_store(&self, store: &gio::Settings) {
+        self.imp().store.replace(Some(store.clone()));
+    }
+    pub fn store(&self) -> gio::Settings {
+        self.imp()
+            .store
+            .borrow()
+            .clone()
+            .expect("session settings store initialized before restoration")
+    }
+
     /// Create a new `SessionListSettings`.
     pub fn new() -> Self {
         glib::Object::new()
     }
 
     /// Load these settings from the application settings.
-    pub(crate) fn load(&self) {
-        let serialized = Application::default().settings().string("sessions");
+    pub fn load(&self) {
+        let serialized = self.store().string("sessions");
 
         let stored_sessions =
             match serde_json::from_str::<Vec<(String, StoredSessionSettings)>>(&serialized) {
@@ -67,6 +78,7 @@ impl SessionListSettings {
                 }
 
                 let session = SessionSettings::restore(&session_id, stored_session);
+                session.set_owner(self);
                 (session_id, session)
             })
             .collect();
@@ -79,7 +91,7 @@ impl SessionListSettings {
     }
 
     /// Save these settings in the application settings.
-    pub(crate) fn save(&self) {
+    pub fn save(&self) {
         let stored_sessions = self
             .imp()
             .sessions
@@ -88,7 +100,7 @@ impl SessionListSettings {
             .map(|(session_id, session)| (session_id.clone(), session.stored_settings()))
             .collect::<Vec<_>>();
 
-        if let Err(error) = Application::default().settings().set_string(
+        if let Err(error) = self.store().set_string(
             "sessions",
             &serde_json::to_string(&stored_sessions).unwrap(),
         ) {
@@ -97,7 +109,7 @@ impl SessionListSettings {
     }
 
     /// Get or create the settings for the session with the given ID.
-    pub(crate) fn get_or_create(&self, session_id: &str) -> SessionSettings {
+    pub fn get_or_create(&self, session_id: &str) -> SessionSettings {
         let sessions = &self.imp().sessions;
 
         if let Some(session) = sessions.borrow().get(session_id) {
@@ -105,6 +117,7 @@ impl SessionListSettings {
         }
 
         let session = SessionSettings::new(session_id);
+        session.set_owner(self);
         sessions
             .borrow_mut()
             .insert(session_id.to_owned(), session.clone());
@@ -114,13 +127,13 @@ impl SessionListSettings {
     }
 
     /// Remove the settings of the session with the given ID.
-    pub(crate) fn remove(&self, session_id: &str) {
+    pub fn remove(&self, session_id: &str) {
         self.imp().sessions.borrow_mut().shift_remove(session_id);
         self.save();
     }
 
     /// Get the list of session IDs stored in these settings.
-    pub(crate) fn session_ids(&self) -> IndexSet<String> {
+    pub fn session_ids(&self) -> IndexSet<String> {
         self.imp().sessions.borrow().keys().cloned().collect()
     }
 }

@@ -1,9 +1,8 @@
 use gtk::{gdk, glib, prelude::*, subclass::prelude::*};
 use tracing::warn;
 
-use super::AvatarImage;
 use crate::{
-    application::Application,
+    components::AvatarImage,
     utils::notifications::{paintable_as_notification_icon, string_as_notification_icon},
 };
 
@@ -71,8 +70,11 @@ impl AvatarData {
     /// If `inhibit_image` is set, the image of the avatar will not be used.
     ///
     /// Returns `None` if an error occurred while generating the icon.
-    pub(crate) async fn as_notification_icon(&self, inhibit_image: bool) -> Option<gdk::Texture> {
-        let Some(window) = Application::default().active_window() else {
+    pub async fn as_notification_icon(&self, inhibit_image: bool) -> Option<gdk::Texture> {
+        let Some(window) = gtk::gio::Application::default()
+            .and_downcast::<gtk::Application>()
+            .and_then(|app| app.active_window())
+        else {
             warn!("Could not generate icon for notification: no active window");
             return None;
         };

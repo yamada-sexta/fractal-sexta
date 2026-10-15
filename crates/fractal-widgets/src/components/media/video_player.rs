@@ -214,12 +214,12 @@ impl VideoPlayer {
     }
 
     /// Set the video file to play.
-    pub(crate) fn play_video_file(&self, file: gio::File) {
+    pub fn play_video_file(&self, file: gio::File) {
         self.imp().play_video_file(file);
     }
 
     /// The current error, if any.
-    pub(crate) fn error(&self) -> Option<glib::Error> {
+    pub fn error(&self) -> Option<glib::Error> {
         self.imp().error.borrow().clone()
     }
 }

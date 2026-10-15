@@ -1,5 +1,5 @@
 use gettextrs::gettext;
-use gtk::{gio, glib, prelude::*};
+use gtk::glib;
 use matrix_sdk::Client;
 use ruma::events::{
     room::message::{
@@ -8,13 +8,10 @@ use ruma::events::{
     },
     sticker::StickerEventContent,
 };
-use tracing::{debug, error};
 
 use crate::{
-    components::ContentType,
     gettext_f,
     prelude::*,
-    toast,
     utils::{
         File,
         media::{
@@ -50,7 +47,7 @@ macro_rules! filename {
 
 /// A media message.
 #[derive(Debug, Clone)]
-pub(crate) enum MediaMessage {
+pub enum MediaMessage {
     /// An audio.
     Audio(AudioMessageEventContent),
     /// A file.
@@ -65,7 +62,7 @@ pub(crate) enum MediaMessage {
 
 impl MediaMessage {
     /// Construct a `MediaMessage` from the given message.
-    pub(crate) fn from_message(msgtype: &MessageType) -> Option<Self> {
+    pub fn from_message(msgtype: &MessageType) -> Option<Self> {
         match msgtype {
             MessageType::Audio(c) => Some(Self::Audio(c.clone())),
             MessageType::File(c) => Some(Self::File(c.clone())),
@@ -83,7 +80,7 @@ impl MediaMessage {
     ///   usually generated randomly.
     /// - For a sticker, this returns the description of the sticker, because
     ///   they do not have a filename.
-    pub(crate) fn display_name(&self) -> String {
+    pub fn display_name(&self) -> String {
         match self {
             Self::Audio(c) => {
                 if c.voice.is_some() {
@@ -107,7 +104,7 @@ impl MediaMessage {
     ///   the message.
     /// - For a sticker, this returns the description of the sticker, because
     ///   they do not have a filename.
-    pub(crate) fn filename(&self, timestamp: &glib::DateTime) -> String {
+    pub fn filename(&self, timestamp: &glib::DateTime) -> String {
         match self {
             Self::Audio(c) => {
                 let mut filename = filename!(c, Some(mime::AUDIO));
@@ -142,7 +139,7 @@ impl MediaMessage {
     /// The caption of the media, if any.
     ///
     /// Returns `Some((body, formatted_body))` if the media includes a caption.
-    pub(crate) fn caption(&self) -> Option<(String, Option<FormattedBody>)> {
+    pub fn caption(&self) -> Option<(String, Option<FormattedBody>)> {
         let mut caption = match self {
             Self::Audio(c) => c
                 .caption()
@@ -172,7 +169,7 @@ impl MediaMessage {
     /// Fetch the content of the media with the given client.
     ///
     /// Returns an error if something occurred while fetching the content.
-    pub(crate) async fn into_content(self, client: &Client) -> Result<Vec<u8>, matrix_sdk::Error> {
+    pub async fn into_content(self, client: &Client) -> Result<Vec<u8>, matrix_sdk::Error> {
         let media = client.media();
 
         macro_rules! content {
@@ -201,64 +198,9 @@ impl MediaMessage {
     /// temporary file.
     ///
     /// Returns an error if something occurred while fetching the content.
-    pub(crate) async fn into_tmp_file(self, client: &Client) -> Result<File, MediaFileError> {
+    pub async fn into_tmp_file(self, client: &Client) -> Result<File, MediaFileError> {
         let data = self.into_content(client).await?;
         Ok(save_data_to_tmp_file(data).await?)
-    }
-
-    /// Save the content of the media to a file selected by the user.
-    ///
-    /// Shows a dialog to the user to select a file on the system.
-    pub(crate) async fn save_to_file(
-        self,
-        timestamp: &glib::DateTime,
-        client: &Client,
-        parent: &impl IsA<gtk::Widget>,
-    ) {
-        let filename = self.filename(timestamp);
-
-        let data = match self.into_content(client).await {
-            Ok(data) => data,
-            Err(error) => {
-                error!("Could not retrieve media file: {error}");
-                toast!(parent, error.to_user_facing());
-
-                return;
-            }
-        };
-
-        let dialog = gtk::FileDialog::builder()
-            .title(gettext("Save File"))
-            .modal(true)
-            .accept_label(gettext("Save"))
-            .initial_name(filename)
-            .build();
-
-        match dialog
-            .save_future(parent.root().and_downcast_ref::<gtk::Window>())
-            .await
-        {
-            Ok(file) => {
-                if let Err(error) = file.replace_contents(
-                    &data,
-                    None,
-                    false,
-                    gio::FileCreateFlags::REPLACE_DESTINATION,
-                    gio::Cancellable::NONE,
-                ) {
-                    error!("Could not save file: {error}");
-                    toast!(parent, gettext("Could not save file"));
-                }
-            }
-            Err(error) => {
-                if error.matches(gtk::DialogError::Dismissed) {
-                    debug!("File dialog dismissed by user");
-                } else {
-                    error!("Could not access file: {error}");
-                    toast!(parent, gettext("Could not access file"));
-                }
-            }
-        }
     }
 }
 
@@ -281,8 +223,9 @@ impl From<StickerEventContent> for MediaMessage {
 }
 
 /// A visual media message.
-#[derive(Debug, Clone)]
-pub(crate) enum VisualMediaMessage {
+#[derive(Debug, Clone, glib::Boxed)]
+#[boxed_type(name = "FractalVisualMediaMessage")]
+pub enum VisualMediaMessage {
     /// An image.
     Image(ImageMessageEventContent),
     /// A video.
@@ -293,7 +236,7 @@ pub(crate) enum VisualMediaMessage {
 
 impl VisualMediaMessage {
     /// Construct a `VisualMediaMessage` from the given message.
-    pub(crate) fn from_message(msgtype: &MessageType) -> Option<Self> {
+    pub fn from_message(msgtype: &MessageType) -> Option<Self> {
         match msgtype {
             MessageType::Image(c) => Some(Self::Image(c.clone())),
             MessageType::Video(c) => Some(Self::Video(c.clone())),
@@ -304,7 +247,7 @@ impl VisualMediaMessage {
     /// The filename of the media.
     ///
     /// For a sticker, this returns the description of the sticker.
-    pub(crate) fn filename(&self) -> String {
+    pub fn filename(&self) -> String {
         match self {
             Self::Image(c) => filename!(c, Some(mime::IMAGE)),
             Self::Video(c) => filename!(c, Some(mime::VIDEO)),
@@ -313,7 +256,7 @@ impl VisualMediaMessage {
     }
 
     /// The dimensions of the media, if any.
-    pub(crate) fn dimensions(&self) -> Option<FrameDimensions> {
+    pub fn dimensions(&self) -> Option<FrameDimensions> {
         let (width, height) = match self {
             Self::Image(c) => c.info.as_ref().map(|i| (i.width, i.height))?,
             Self::Video(c) => c.info.as_ref().map(|i| (i.width, i.height))?,
@@ -323,7 +266,7 @@ impl VisualMediaMessage {
     }
 
     /// The type of the media.
-    pub(crate) fn visual_media_type(&self) -> VisualMediaType {
+    pub fn visual_media_type(&self) -> VisualMediaType {
         match self {
             Self::Image(_) => VisualMediaType::Image,
             Self::Sticker(_) => VisualMediaType::Sticker,
@@ -332,7 +275,7 @@ impl VisualMediaMessage {
     }
 
     /// The content type of the media.
-    pub(crate) fn content_type(&self) -> ContentType {
+    pub fn content_type(&self) -> ContentType {
         match self {
             Self::Image(_) | Self::Sticker(_) => ContentType::Image,
             Self::Video(_) => ContentType::Video,
@@ -340,7 +283,7 @@ impl VisualMediaMessage {
     }
 
     /// Get the Blurhash of the media, if any.
-    pub(crate) fn blurhash(&self) -> Option<Blurhash> {
+    pub fn blurhash(&self) -> Option<Blurhash> {
         match self {
             Self::Image(image_content) => image_content.info.as_deref()?.blurhash.clone(),
             Self::Sticker(sticker_content) => sticker_content.info.blurhash.clone(),
@@ -360,11 +303,12 @@ impl VisualMediaMessage {
     ///
     /// Returns an error if something occurred while fetching the content or
     /// loading it.
-    pub(crate) async fn thumbnail(
+    pub async fn thumbnail(
         &self,
         client: Client,
         settings: ThumbnailSettings,
         priority: ImageRequestPriority,
+        cache: &crate::media::image::ImageCache,
     ) -> Result<Option<Image>, ImageError> {
         let downloader = match &self {
             Self::Image(c) => {
@@ -413,8 +357,8 @@ impl VisualMediaMessage {
             }
         };
 
-        downloader
-            .download(client, settings, priority)
+        cache
+            .download(downloader, client, settings, priority)
             .await
             .map(Some)
     }
@@ -424,22 +368,8 @@ impl VisualMediaMessage {
     ///
     /// Returns an error if something occurred while fetching the content or
     /// saving the content to a file.
-    pub(crate) async fn into_tmp_file(self, client: &Client) -> Result<File, MediaFileError> {
+    pub async fn into_tmp_file(self, client: &Client) -> Result<File, MediaFileError> {
         MediaMessage::from(self).into_tmp_file(client).await
-    }
-
-    /// Save the content of the media to a file selected by the user.
-    ///
-    /// Shows a dialog to the user to select a file on the system.
-    pub(crate) async fn save_to_file(
-        self,
-        timestamp: &glib::DateTime,
-        client: &Client,
-        parent: &impl IsA<gtk::Widget>,
-    ) {
-        MediaMessage::from(self)
-            .save_to_file(timestamp, client, parent)
-            .await;
     }
 }
 
@@ -479,7 +409,7 @@ impl From<VisualMediaMessage> for MediaMessage {
 
 /// The type of a visual media message.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum VisualMediaType {
+pub enum VisualMediaType {
     /// An image.
     Image,
     /// A video.
@@ -489,7 +419,7 @@ pub(crate) enum VisualMediaType {
 }
 
 /// Extension trait for audio messages.
-pub(crate) trait AudioMessageExt {
+pub trait AudioMessageExt {
     /// Get the normalized waveform in this audio message, if any.
     ///
     /// A normalized waveform is a waveform containing only values between 0 and
@@ -511,5 +441,44 @@ impl AudioMessageExt for AudioMessageEventContent {
                 .map(|amplitude| u64::from(amplitude.get()) as f64)
                 .collect(),
         ))
+    }
+}
+
+/// The types of media content supported by the application.
+#[derive(Debug, Default, Clone, Copy)]
+pub enum ContentType {
+    /// An image.
+    Image,
+    /// An audio file.
+    Audio,
+    /// A video.
+    Video,
+    /// An other content type.
+    ///
+    /// These types are not supported and will result in a fallback screen.
+    #[default]
+    Other,
+}
+
+impl ContentType {
+    /// The name of the icon to represent this content type.
+    pub fn icon_name(self) -> &'static str {
+        match self {
+            ContentType::Image => "image-symbolic",
+            ContentType::Audio => "audio-symbolic",
+            ContentType::Video => "video-symbolic",
+            ContentType::Other => "document-symbolic",
+        }
+    }
+}
+
+impl From<&str> for ContentType {
+    fn from(string: &str) -> Self {
+        match string {
+            "image" => Self::Image,
+            "audio" => Self::Audio,
+            "video" => Self::Video,
+            _ => Self::Other,
+        }
     }
 }

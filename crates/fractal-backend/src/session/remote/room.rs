@@ -451,7 +451,7 @@ impl RemoteRoom {
     }
 
     /// Construct a new `RemoteRoom` for the given URI and data.
-    pub(crate) fn with_data(
+    pub fn with_data(
         session: &Session,
         uri: MatrixRoomIdUri,
         data: impl Into<RoomSummary>,
@@ -463,17 +463,17 @@ impl RemoteRoom {
     }
 
     /// The Matrix URI of this room.
-    pub(crate) fn uri(&self) -> &MatrixRoomIdUri {
+    pub fn uri(&self) -> &MatrixRoomIdUri {
         self.imp().uri()
     }
 
     /// The ID of this room.
-    pub(crate) fn room_id(&self) -> Option<OwnedRoomId> {
+    pub fn room_id(&self) -> Option<OwnedRoomId> {
         self.imp().room_id()
     }
 
     /// The canonical alias of this room.
-    pub(crate) fn canonical_alias(&self) -> Option<OwnedRoomAliasId> {
+    pub fn canonical_alias(&self) -> Option<OwnedRoomAliasId> {
         self.imp().canonical_alias()
     }
 

@@ -6,7 +6,7 @@ mod permissions_subpage;
 mod privileged_members;
 mod select_member_row;
 
-pub(crate) use self::{
+pub use self::{
     add_members_subpage::PermissionsAddMembersSubpage, member_power_level::MemberPowerLevel,
     member_row::PermissionsMemberRow, members_subpage::PermissionsMembersSubpage,
     permissions_subpage::PermissionsSubpage, privileged_members::PrivilegedMembers,

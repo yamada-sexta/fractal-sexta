@@ -382,7 +382,7 @@ impl CompletionPopover {
     /// Activate the selected row.
     ///
     /// Returns `true` if the row was activated.
-    pub(crate) fn activate_selected_row(&self) -> bool {
+    pub fn activate_selected_row(&self) -> bool {
         self.imp().activate_selected_row()
     }
 }

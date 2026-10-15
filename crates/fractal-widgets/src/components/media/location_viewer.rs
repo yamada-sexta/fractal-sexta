@@ -167,7 +167,7 @@ impl LocationViewer {
     }
 
     // Move the map viewport to the provided coordinates and draw a marker.
-    pub(crate) fn set_location(&self, geo_uri: &GeoUri) {
+    pub fn set_location(&self, geo_uri: &GeoUri) {
         self.imp().set_location(geo_uri);
     }
 }

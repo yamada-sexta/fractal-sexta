@@ -14,7 +14,7 @@ use super::load_gstreamer_media_info;
 use crate::utils::{OneshotNotifier, resample_slice};
 
 /// Load information for the audio in the given file.
-pub(crate) async fn load_audio_info(file: &gio::File) -> BaseAudioInfo {
+pub async fn load_audio_info(file: &gio::File) -> BaseAudioInfo {
     let mut info = BaseAudioInfo::default();
 
     if let Some(media_info) = load_gstreamer_media_info(file).await {
@@ -147,7 +147,7 @@ async fn generate_waveform(file: &gio::File, duration: Option<Duration>) -> Opti
 /// If the waveform was empty, returns an empty vec.
 ///
 /// Note that the number of required samples comes from MSC3246.
-pub(crate) fn normalize_waveform(waveform: Vec<f64>) -> Vec<f32> {
+pub fn normalize_waveform(waveform: Vec<f64>) -> Vec<f32> {
     if waveform.is_empty() {
         return vec![];
     }

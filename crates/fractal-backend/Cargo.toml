@@ -1,0 +1,48 @@
+[package]
+name = "fractal-backend"
+version.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[target.'cfg(target_os = "linux")'.dependencies]
+oo7.workspace = true
+
+[package.metadata.cargo-machete]
+ignored = ["serde_bytes"]
+
+[dependencies]
+fractal-config = { path = "../fractal-config" }
+fractal-core = { path = "../fractal-core" }
+fractal-gtk-utils = { path = "../fractal-gtk-utils" }
+fractal-media = { path = "../fractal-media" }
+futures-channel.workspace = true
+futures-util.workspace = true
+gettext-rs.workspace = true
+gtk.workspace = true
+indexmap.workspace = true
+matrix-sdk.workspace = true
+matrix-sdk-store-encryption.workspace = true
+matrix-sdk-ui.workspace = true
+qrcode.workspace = true
+quick_cache.workspace = true
+rand.workspace = true
+rmp-serde.workspace = true
+ruma.workspace = true
+serde.workspace = true
+serde_bytes.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tokio-stream.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+url.workspace = true
+zeroize.workspace = true
+
+[dev-dependencies]
+strass.workspace = true
+
+[lints]
+workspace = true

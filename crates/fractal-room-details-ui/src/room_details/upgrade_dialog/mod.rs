@@ -260,7 +260,7 @@ impl UpgradeDialog {
     ///
     /// Returns the selected room version, or `None` if the user cancelled the
     /// upgrade.
-    pub(crate) async fn confirm_upgrade(
+    pub async fn confirm_upgrade(
         &self,
         info: &UpgradeInfo,
         parent: &impl IsA<gtk::Widget>,
@@ -271,27 +271,27 @@ impl UpgradeDialog {
 
 /// The information necessary for [`UpgradeDialog`].
 #[derive(Debug, Clone)]
-pub(crate) struct UpgradeInfo {
+pub struct UpgradeInfo {
     /// The sorted stable room versions available for the upgrade.
-    pub(crate) stable_room_versions: Vec<RoomVersionId>,
+    pub stable_room_versions: Vec<RoomVersionId>,
     /// The sorted unstable room versions available for the upgrade.
-    pub(crate) unstable_room_versions: Vec<RoomVersionId>,
+    pub unstable_room_versions: Vec<RoomVersionId>,
     /// The position of the room version that should be selected by default,
     /// when `stable_room_versions` and `unstable_room_versions` are
     /// concatenated.
-    pub(crate) selected: usize,
+    pub selected: usize,
     /// Whether our own user is a privileged creator in the current room.
-    pub(crate) own_user_is_creator: bool,
+    pub own_user_is_creator: bool,
     /// The number of privileged creators that are not our own user in the
     /// current room.
-    pub(crate) other_creators_count: usize,
+    pub other_creators_count: usize,
     /// The current join rule of the room.
-    pub(crate) join_rule: JoinRuleValue,
+    pub join_rule: JoinRuleValue,
 }
 
 impl UpgradeInfo {
     /// Construct an empty `UpgradeInfo`.
-    pub(crate) fn new(join_rule: JoinRuleValue) -> Self {
+    pub fn new(join_rule: JoinRuleValue) -> Self {
         Self {
             stable_room_versions: vec![],
             unstable_room_versions: vec![],
@@ -314,7 +314,7 @@ impl UpgradeInfo {
     ///
     /// If the server's default is experimental, we also allow to upgrade to the
     /// highest stable version.
-    pub(crate) fn with_room_versions(
+    pub fn with_room_versions(
         mut self,
         current_room_version: &RoomVersionId,
         capability: &RoomVersionsCapability,
@@ -397,7 +397,7 @@ impl UpgradeInfo {
     }
 
     /// Add information about the privileged creators changes.
-    pub(crate) fn with_privileged_creators(
+    pub fn with_privileged_creators(
         mut self,
         own_creator: &OwnedUserId,
         privileged_creators: &[OwnedUserId],

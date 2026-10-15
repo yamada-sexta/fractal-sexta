@@ -10,9 +10,7 @@ mod new_session;
 mod session_info;
 mod session_list_settings;
 
-pub(crate) use self::{
-    failed_session::*, new_session::*, session_info::*, session_list_settings::*,
-};
+pub use self::{failed_session::*, new_session::*, session_info::*, session_list_settings::*};
 use crate::{
     prelude::*,
     secret::{Secret, StoredSession},
@@ -300,7 +298,7 @@ impl SessionList {
     }
 
     /// Whether at least one session is ready.
-    pub(crate) fn has_session_ready(&self) -> bool {
+    pub fn has_session_ready(&self) -> bool {
         self.imp()
             .list
             .borrow()
@@ -310,17 +308,17 @@ impl SessionList {
     }
 
     /// The session with the given ID, if any.
-    pub(crate) fn get(&self, session_id: &str) -> Option<SessionInfo> {
+    pub fn get(&self, session_id: &str) -> Option<SessionInfo> {
         self.imp().list.borrow().get(session_id).cloned()
     }
 
     /// The index of the session with the given ID, if any.
-    pub(crate) fn index(&self, session_id: &str) -> Option<usize> {
+    pub fn index(&self, session_id: &str) -> Option<usize> {
         self.imp().list.borrow().get_index_of(session_id)
     }
 
     /// The first session in the list, if any.
-    pub(crate) fn first(&self) -> Option<SessionInfo> {
+    pub fn first(&self) -> Option<SessionInfo> {
         self.imp().list.borrow().first().map(|(_, v)| v.clone())
     }
 
@@ -329,12 +327,12 @@ impl SessionList {
     /// If a session with the same ID already exists, it is replaced.
     ///
     /// Returns the index of the session.
-    pub(crate) fn insert(&self, session: impl IsA<SessionInfo>) -> usize {
+    pub fn insert(&self, session: impl IsA<SessionInfo>) -> usize {
         self.imp().insert(session)
     }
 
     /// Restore the logged-in sessions.
-    pub(crate) async fn restore_sessions(&self) {
+    pub async fn restore_sessions(&self) {
         self.imp().restore_sessions().await;
     }
 }

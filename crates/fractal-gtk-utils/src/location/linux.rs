@@ -15,7 +15,7 @@ use crate::{RUNTIME, spawn_tokio};
 
 /// Location API under Linux, using the Location XDG Desktop Portal.
 #[derive(Debug, Default)]
-pub(crate) struct LinuxLocation {
+pub struct LinuxLocation {
     inner: OnceCell<ProxyAndSession>,
 }
 
@@ -59,7 +59,7 @@ impl LocationExt for LinuxLocation {
 }
 
 impl LinuxLocation {
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         Self::default()
     }
 

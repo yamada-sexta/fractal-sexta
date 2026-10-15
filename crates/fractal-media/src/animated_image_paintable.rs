@@ -1,9 +1,9 @@
-use glycin::{Frame, Image};
+use glycin::Image;
 use gtk::{gdk, glib, glib::clone, graphene, prelude::*, subclass::prelude::*};
 use tracing::error;
 
 use crate::{
-    prelude::*,
+    media::{FrameDimensions, image::DisplayFrame},
     spawn,
     utils::{CountedRef, File},
 };
@@ -22,10 +22,12 @@ mod imp {
         /// We need to keep a strong reference to the temporary file or it will
         /// be destroyed.
         file: OnceCell<File>,
+        dimensions: OnceCell<Option<FrameDimensions>>,
+        loading: std::cell::Cell<bool>,
         /// The current frame that is displayed.
-        pub(super) current_frame: RefCell<Option<Frame>>,
+        pub(super) current_frame: RefCell<Option<DisplayFrame>>,
         /// The next frame of the animation, if any.
-        next_frame: RefCell<Option<Frame>>,
+        next_frame: RefCell<Option<DisplayFrame>>,
         /// The source ID of the timeout to load the next frame, if any.
         timeout_source_id: RefCell<Option<glib::SourceId>>,
         /// The counted reference for the animation.
@@ -48,7 +50,10 @@ mod imp {
             self.current_frame
                 .borrow()
                 .as_ref()
-                .map_or_else(|| self.decoder().height(), glycin::Frame::height)
+                .map_or_else(
+                    || self.decoder().height(),
+                    |frame| frame.texture.height().try_into().unwrap_or_default(),
+                )
                 .try_into()
                 .unwrap_or(i32::MAX)
         }
@@ -57,14 +62,17 @@ mod imp {
             self.current_frame
                 .borrow()
                 .as_ref()
-                .map_or_else(|| self.decoder().width(), glycin::Frame::width)
+                .map_or_else(
+                    || self.decoder().width(),
+                    |frame| frame.texture.width().try_into().unwrap_or_default(),
+                )
                 .try_into()
                 .unwrap_or(i32::MAX)
         }
 
         fn snapshot(&self, snapshot: &gdk::Snapshot, width: f64, height: f64) {
             if let Some(frame) = &*self.current_frame.borrow() {
-                frame.texture().snapshot(snapshot, width, height);
+                frame.texture.snapshot(snapshot, width, height);
             } else {
                 let snapshot = snapshot.downcast_ref::<gtk::Snapshot>().unwrap();
                 snapshot.append_color(
@@ -99,11 +107,20 @@ mod imp {
         }
 
         /// Initialize the image.
-        pub(super) fn init(&self, decoder: Image, first_frame: Frame, file: Option<File>) {
+        pub(super) fn init(
+            &self,
+            decoder: Image,
+            first_frame: DisplayFrame,
+            file: Option<File>,
+            dimensions: Option<FrameDimensions>,
+        ) {
             self.decoder
                 .set(decoder)
                 .expect("decoder should be uninitialized");
             self.current_frame.replace(Some(first_frame));
+            self.dimensions
+                .set(dimensions)
+                .expect("dimensions uninitialized");
 
             if let Some(file) = file {
                 self.file.set(file).expect("file should be uninitialized");
@@ -170,7 +187,7 @@ mod imp {
                 .current_frame
                 .borrow()
                 .as_ref()
-                .and_then(GlycinFrameExt::delay_duration)
+                .and_then(|frame| frame.delay)
             else {
                 return;
             };
@@ -188,22 +205,33 @@ mod imp {
             );
             self.timeout_source_id.replace(Some(source_id));
 
-            spawn!(clone!(
-                #[weak(rename_to = imp)]
-                self,
-                async move {
-                    imp.load_next_frame_inner().await;
-                }
-            ));
+            if self.next_frame.borrow().is_none() && !self.loading.replace(true) {
+                spawn!(clone!(
+                    #[weak(rename_to = imp)]
+                    self,
+                    async move {
+                        imp.load_next_frame_inner().await;
+                    }
+                ));
+            }
         }
 
         async fn load_next_frame_inner(&self) {
-            match self.decoder().next_frame_future().await {
+            let result = match self.decoder().next_frame_future().await {
+                Ok(frame) => {
+                    DisplayFrame::prepare(frame, self.dimensions.get().copied().flatten()).await
+                }
+                Err(error) => Err(error.into()),
+            };
+            self.loading.set(false);
+            match result {
                 Ok(next_frame) => {
                     self.next_frame.replace(Some(next_frame));
 
                     // In case loading the frame took longer than the delay between frames.
-                    if self.timeout_source_id.borrow().is_none() {
+                    if self.animation_ref().count() != 0
+                        && self.timeout_source_id.borrow().is_none()
+                    {
                         self.show_next_frame();
                     }
                 }
@@ -225,21 +253,26 @@ glib::wrapper! {
 impl AnimatedImagePaintable {
     /// Construct an `AnimatedImagePaintable` with the given  decoder, first
     /// frame, and the file containing the image, if any.
-    pub(crate) fn new(decoder: Image, first_frame: Frame, file: Option<File>) -> Self {
+    pub fn new(
+        decoder: Image,
+        first_frame: DisplayFrame,
+        file: Option<File>,
+        dimensions: Option<FrameDimensions>,
+    ) -> Self {
         let obj = glib::Object::new::<Self>();
 
-        obj.imp().init(decoder, first_frame, file);
+        obj.imp().init(decoder, first_frame, file, dimensions);
 
         obj
     }
 
     /// Get the current `GdkTexture` of this paintable, if any.
-    pub(crate) fn current_texture(&self) -> Option<gdk::Texture> {
-        Some(self.imp().current_frame.borrow().as_ref()?.texture())
+    pub fn current_texture(&self) -> Option<gdk::Texture> {
+        Some(self.imp().current_frame.borrow().as_ref()?.texture.clone())
     }
 
     /// Get an animation ref.
-    pub(crate) fn animation_ref(&self) -> CountedRef {
+    pub fn animation_ref(&self) -> CountedRef {
         self.imp().animation_ref().clone()
     }
 }

@@ -13,7 +13,6 @@ use ruma::{
 
 use super::{Avatar, LoadingButton, LoadingButtonRow, PowerLevelSelectionRow};
 use crate::{
-    Window,
     components::{
         RoomMemberDestructiveAction, confirm_mute_room_member_dialog, confirm_own_demotion_dialog,
         confirm_room_member_destructive_action_dialog,
@@ -312,9 +311,7 @@ mod imp {
                 return;
             };
 
-            if let Some(main_window) = parent_window.transient_for().and_downcast::<Window>() {
-                main_window.session_view().select_room(room);
-            }
+            crate::navigation::show_room(&room);
 
             parent_window.close();
         }
@@ -725,11 +722,7 @@ mod imp {
                 return;
             };
 
-            if let Some(main_window) = parent_window.transient_for().and_downcast::<Window>() {
-                main_window
-                    .session_view()
-                    .select_identity_verification(verification);
-            }
+            crate::navigation::show_verification(&verification);
 
             parent_window.close();
         }

@@ -3,7 +3,6 @@ use gettextrs::gettext;
 use gtk::{glib, glib::clone};
 
 use crate::{
-    Window,
     components::LoadingButton,
     gettext_f,
     prelude::*,
@@ -52,9 +51,6 @@ mod imp {
             klass.set_accessible_role(gtk::AccessibleRole::Group);
 
             klass.install_action_async("verification.accept", None, |obj, _, _| async move {
-                let Some(window) = obj.root().and_downcast::<Window>() else {
-                    return;
-                };
                 let Some(verification) = obj.verification() else {
                     return;
                 };
@@ -70,9 +66,7 @@ mod imp {
                     }
                 }
 
-                window
-                    .session_view()
-                    .select_identity_verification(verification);
+                fractal_widgets::navigation::show_verification(&verification);
                 imp.accept_btn.set_is_loading(false);
             });
 

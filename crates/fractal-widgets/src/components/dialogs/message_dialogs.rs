@@ -15,7 +15,7 @@ use crate::{
 /// This supports both leaving a joined room and rejecting an invite.
 ///
 /// Returns `None` if the user did not confirm.
-pub(crate) async fn confirm_leave_room_dialog(
+pub async fn confirm_leave_room_dialog(
     room: &Room,
     parent: &impl IsA<gtk::Widget>,
 ) -> Option<ConfirmLeaveRoomResponse> {
@@ -100,14 +100,14 @@ pub(crate) async fn confirm_leave_room_dialog(
 
 /// A response to the dialog to confirm leaving a room
 #[derive(Debug, Default, Clone)]
-pub(crate) struct ConfirmLeaveRoomResponse {
+pub struct ConfirmLeaveRoomResponse {
     /// If the room is an invite, whether the user wants to ignore the inviter.
     pub ignore_inviter: bool,
 }
 
 /// The room member destructive actions that need to be confirmed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum RoomMemberDestructiveAction {
+pub enum RoomMemberDestructiveAction {
     /// Ban the member.
     ///
     /// The value is the number of events that can be redacted for the member.
@@ -255,7 +255,7 @@ impl RoomMemberDestructiveAction {
 /// member.
 ///
 /// Returns `None` if the user did not confirm.
-pub(crate) async fn confirm_room_member_destructive_action_dialog(
+pub async fn confirm_room_member_destructive_action_dialog(
     member: &Member,
     action: RoomMemberDestructiveAction,
     parent: &impl IsA<gtk::Widget>,
@@ -349,7 +349,7 @@ pub(crate) async fn confirm_room_member_destructive_action_dialog(
 /// A response to the dialog to confirm a "destructive" action on a room
 /// member.
 #[derive(Debug, Default, Clone)]
-pub(crate) struct ConfirmRoomMemberDestructiveActionResponse {
+pub struct ConfirmRoomMemberDestructiveActionResponse {
     /// The reason of the action.
     pub reason: Option<String>,
     /// Whether we can remove the events.
@@ -357,7 +357,7 @@ pub(crate) struct ConfirmRoomMemberDestructiveActionResponse {
 }
 
 /// Show a dialog to confirm muting one or several room members.
-pub(crate) async fn confirm_mute_room_member_dialog(
+pub async fn confirm_mute_room_member_dialog(
     members: &[impl IsA<User>],
     parent: &impl IsA<gtk::Widget>,
 ) -> bool {
@@ -417,7 +417,7 @@ pub(crate) async fn confirm_mute_room_member_dialog(
 
 /// Show a dialog to confirm setting the power level of one or several room
 /// members with the same value as our own.
-pub(crate) async fn confirm_set_room_member_power_level_same_as_own_dialog(
+pub async fn confirm_set_room_member_power_level_same_as_own_dialog(
     members: &[impl IsA<User>],
     parent: &impl IsA<gtk::Widget>,
 ) -> bool {
@@ -475,7 +475,7 @@ pub(crate) async fn confirm_set_room_member_power_level_same_as_own_dialog(
 }
 
 /// Show a dialog to confirm the demotion of our own user.
-pub(crate) async fn confirm_own_demotion_dialog(parent: &impl IsA<gtk::Widget>) -> bool {
+pub async fn confirm_own_demotion_dialog(parent: &impl IsA<gtk::Widget>) -> bool {
     let heading = gettext("Demote Yourself?");
     let body = gettext(
         "Are you sure you want to lower your power level? You will need to ask another member with a higher power level to undo this.",
@@ -497,9 +497,7 @@ pub(crate) async fn confirm_own_demotion_dialog(parent: &impl IsA<gtk::Widget>) 
 }
 
 /// Show a dialog for the user to choose what to do about unsaved changes.
-pub(crate) async fn unsaved_changes_dialog(
-    parent: &impl IsA<gtk::Widget>,
-) -> UnsavedChangesResponse {
+pub async fn unsaved_changes_dialog(parent: &impl IsA<gtk::Widget>) -> UnsavedChangesResponse {
     let title = gettext("Save Changes?");
     let description =
         gettext("This page contains unsaved changes. Changes which are not saved will be lost.");
@@ -526,7 +524,7 @@ pub(crate) async fn unsaved_changes_dialog(
 
 /// A response to the dialog to choose what to do about unsaved changes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum UnsavedChangesResponse {
+pub enum UnsavedChangesResponse {
     /// Save the changes.
     Save,
     /// Discard the changes.

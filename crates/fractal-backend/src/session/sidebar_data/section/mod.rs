@@ -286,7 +286,7 @@ impl SidebarSection {
 
     /// Whether this section should be shown for the drag-n-drop of a room with
     /// the given category.
-    pub(crate) fn visible_for_room_category(&self, source_category: Option<RoomCategory>) -> bool {
+    pub fn visible_for_room_category(&self, source_category: Option<RoomCategory>) -> bool {
         if !self.is_empty() {
             return true;
         }

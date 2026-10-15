@@ -15,7 +15,6 @@ use ruma::events::{InitialStateEvent, room::encryption::RoomEncryptionEventConte
 use tracing::error;
 
 use crate::{
-    Window,
     components::{LoadingButton, SubstringEntryRow, ToastableDialog},
     prelude::*,
     session::Session,
@@ -205,16 +204,12 @@ mod imp {
             match handle.await.expect("task was not aborted") {
                 Ok(matrix_room) => {
                     let obj = self.obj();
-
-                    let Some(window) = obj.root().and_downcast::<Window>() else {
-                        return;
-                    };
                     if let Some(room) = session
                         .room_list()
                         .get_wait(matrix_room.room_id(), None)
                         .await
                     {
-                        window.session_view().select_room(room);
+                        fractal_widgets::navigation::show_room(&room);
                     }
 
                     obj.close();

@@ -34,9 +34,9 @@ use self::{
     session_setup_view::SessionSetupView,
 };
 use crate::{
-    APP_HOMEPAGE_URL, APP_NAME, Application, RUNTIME, SETTINGS_KEY_CURRENT_SESSION, Window,
-    components::OfflineBanner, prelude::*, secret::Secret, session::Session, spawn, spawn_tokio,
-    toast, utils::AbortableHandle,
+    APP_HOMEPAGE_URL, APP_NAME, RUNTIME, SETTINGS_KEY_CURRENT_SESSION, components::OfflineBanner,
+    prelude::*, secret::Secret, session::Session, spawn, spawn_tokio, toast,
+    utils::AbortableHandle,
 };
 
 /// A page of the login stack.
@@ -99,6 +99,8 @@ mod imp {
     #[template(resource = "/org/gnome/Fractal/ui/login/mod.ui")]
     #[properties(wrapper_type = super::Login)]
     pub struct Login {
+        #[property(get, set, nullable)]
+        session_list: RefCell<Option<crate::session_list::SessionList>>,
         #[template_child]
         navigation: TemplateChild<adw::NavigationView>,
         #[template_child]
@@ -149,6 +151,18 @@ mod imp {
 
     #[glib::derived_properties]
     impl ObjectImpl for Login {
+        fn signals() -> &'static [glib::subclass::Signal] {
+            static SIGNALS: std::sync::LazyLock<Vec<glib::subclass::Signal>> =
+                std::sync::LazyLock::new(|| {
+                    vec![
+                        glib::subclass::Signal::builder("completed")
+                            .param_types([Session::static_type()])
+                            .build(),
+                    ]
+                });
+            SIGNALS.as_ref()
+        }
+
         fn constructed(&self) {
             self.parent_constructed();
 
@@ -692,7 +706,16 @@ mod imp {
 
         /// Create the session after a successful login.
         pub(super) async fn create_session(&self, client: Client) -> Result<(), ()> {
-            match Session::create(&client).await {
+            match Session::create(
+                &client,
+                &self
+                    .obj()
+                    .session_list()
+                    .expect("login session list initialized")
+                    .settings(),
+            )
+            .await
+            {
                 Ok(session) => {
                     self.init_session(session).await;
                     Ok(())
@@ -721,7 +744,12 @@ mod imp {
             self.session.replace(Some(session.clone()));
 
             // Save ID of logging in session to GSettings
-            let settings = Application::default().settings();
+            let settings = self
+                .obj()
+                .session_list()
+                .expect("login session list initialized")
+                .settings()
+                .store();
             if let Err(err) =
                 settings.set_string(SETTINGS_KEY_CURRENT_SESSION, session.session_id())
             {
@@ -740,19 +768,15 @@ mod imp {
         /// Finish the login process and show the session.
         #[template_callback]
         fn finish_login(&self) {
-            let Some(window) = self.obj().root().and_downcast::<Window>() else {
-                return;
-            };
-
             if let Some(session) = self.session.take() {
-                window.add_session(session);
+                self.obj().emit_by_name::<()>("completed", &[&session]);
             }
 
             self.reset();
         }
 
         /// Connect to the signal to go back from this view.
-        pub(super) fn connect_go_back<F>(&self, callback: F)
+        pub fn connect_go_back<F>(&self, callback: F)
         where
             F: Fn() + 'static,
         {
@@ -788,17 +812,27 @@ glib::wrapper! {
 }
 
 impl Login {
+    pub fn connect_completed(
+        &self,
+        callback: impl Fn(&Self, Session) + 'static,
+    ) -> glib::SignalHandlerId {
+        self.connect_closure(
+            "completed",
+            false,
+            glib::closure_local!(move |obj: Self, session: Session| callback(&obj, session)),
+        )
+    }
     pub fn new() -> Self {
         glib::Object::new()
     }
 
     /// Set whether the user can go back from this view.
-    pub(super) fn set_can_go_back(&self, can_go_back: bool) {
+    pub fn set_can_go_back(&self, can_go_back: bool) {
         self.imp().greeter.set_can_go_back(can_go_back);
     }
 
     /// Connect to the signal to go back from this view.
-    pub(super) fn connect_go_back<F>(&self, callback: F)
+    pub fn connect_go_back<F>(&self, callback: F)
     where
         F: Fn() + 'static,
     {

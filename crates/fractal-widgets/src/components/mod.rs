@@ -1,8 +1,8 @@
 mod action_button;
 mod avatar;
-mod camera;
+pub use fractal_gtk_utils::camera;
 mod context_menu_bin;
-pub mod crypto;
+
 mod custom_entry;
 mod dialogs;
 mod drag_overlay;
@@ -17,7 +17,7 @@ mod rows;
 mod scale_revealer;
 mod user_page;
 
-pub(crate) use self::{
+pub use self::{
     action_button::{ActionButton, ActionState},
     avatar::*,
     camera::{Camera, CameraExt, QrCodeScanner},

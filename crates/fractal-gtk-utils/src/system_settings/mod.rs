@@ -69,7 +69,12 @@ glib::wrapper! {
     pub struct SystemSettings(ObjectSubclass<imp::SystemSettings>);
 }
 
+thread_local! { static SHARED_SETTINGS: SystemSettings = SystemSettings::new(); }
 impl SystemSettings {
+    pub fn shared() -> Self {
+        SHARED_SETTINGS.with(Clone::clone)
+    }
+
     pub fn new() -> Self {
         #[cfg(target_os = "linux")]
         let obj = linux::LinuxSystemSettings::new().upcast();

@@ -13,7 +13,7 @@ use crate::spawn_tokio;
 
 /// Camera API under Linux.
 #[derive(Debug)]
-pub(crate) struct LinuxCamera;
+pub struct LinuxCamera;
 
 impl CameraExt for LinuxCamera {
     async fn has_cameras() -> bool {

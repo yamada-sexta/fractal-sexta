@@ -4,7 +4,7 @@ use gtk::glib;
 use sourceview::prelude::*;
 
 /// Setup the style scheme for the given buffer.
-pub(crate) fn setup_style_scheme(buffer: &sourceview::Buffer) {
+pub fn setup_style_scheme(buffer: &sourceview::Buffer) {
     let manager = adw::StyleManager::default();
 
     buffer.set_style_scheme(style_scheme().as_ref());
@@ -19,7 +19,7 @@ pub(crate) fn setup_style_scheme(buffer: &sourceview::Buffer) {
 }
 
 /// Get the style scheme for the current appearance.
-pub(crate) fn style_scheme() -> Option<sourceview::StyleScheme> {
+pub fn style_scheme() -> Option<sourceview::StyleScheme> {
     let manager = adw::StyleManager::default();
     let scheme_name = if manager.is_dark() {
         "Adwaita-dark"

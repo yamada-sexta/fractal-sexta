@@ -1,4 +1,5 @@
 use adw::{prelude::*, subclass::prelude::*};
+pub use fractal_media::media_message::ContentType;
 use geo_uri::GeoUri;
 use gettextrs::gettext;
 use gtk::{gdk, gio, glib};
@@ -10,45 +11,6 @@ use crate::{
     prelude::*,
     utils::{CountedRef, File, media::image::IMAGE_QUEUE},
 };
-
-/// The types of content supported by the [`MediaContentViewer`].
-#[derive(Debug, Default, Clone, Copy)]
-pub enum ContentType {
-    /// An image.
-    Image,
-    /// An audio file.
-    Audio,
-    /// A video.
-    Video,
-    /// An other content type.
-    ///
-    /// These types are not supported and will result in a fallback screen.
-    #[default]
-    Other,
-}
-
-impl ContentType {
-    /// The name of the icon to represent this content type.
-    pub(crate) fn icon_name(self) -> &'static str {
-        match self {
-            ContentType::Image => "image-symbolic",
-            ContentType::Audio => "audio-symbolic",
-            ContentType::Video => "video-symbolic",
-            ContentType::Other => "document-symbolic",
-        }
-    }
-}
-
-impl From<&str> for ContentType {
-    fn from(string: &str) -> Self {
-        match string {
-            "image" => Self::Image,
-            "audio" => Self::Audio,
-            "video" => Self::Video,
-            _ => Self::Other,
-        }
-    }
-}
 
 mod imp {
     use std::cell::{Cell, RefCell};
@@ -295,17 +257,17 @@ impl MediaContentViewer {
     /// Clear the viewer.
     ///
     /// Should be called when the viewer is closed to drop the current file.
-    pub(crate) fn clear(&self) {
+    pub fn clear(&self) {
         self.imp().clear();
     }
 
     /// Show the loading screen.
-    pub(crate) fn show_loading(&self) {
+    pub fn show_loading(&self) {
         self.imp().set_visible_child("loading");
     }
 
     /// Show the fallback message for the given content type.
-    pub(crate) fn show_fallback(&self, content_type: ContentType) {
+    pub fn show_fallback(&self, content_type: ContentType) {
         self.imp().show_fallback(content_type);
     }
 
@@ -313,24 +275,24 @@ impl MediaContentViewer {
     ///
     /// If you have an image file, you can also use
     /// [`MediaContentViewer::view_file()`].
-    pub(crate) fn view_image(&self, image: &impl IsA<gdk::Paintable>) {
+    pub fn view_image(&self, image: &impl IsA<gdk::Paintable>) {
         self.imp().view_image(image.upcast_ref());
     }
 
     /// View the given file.
     ///
     /// If the content type is not provided, it will be guessed from the file.
-    pub(crate) async fn view_file(&self, file: File, content_type: Option<ContentType>) {
+    pub async fn view_file(&self, file: File, content_type: Option<ContentType>) {
         self.imp().view_file(file, content_type).await;
     }
 
     /// View the given location as a geo URI.
-    pub(crate) fn view_location(&self, geo_uri: &GeoUri) {
+    pub fn view_location(&self, geo_uri: &GeoUri) {
         self.imp().view_location(geo_uri);
     }
 
     /// Get the texture displayed by this widget, if any.
-    pub(crate) fn texture(&self) -> Option<gdk::Texture> {
+    pub fn texture(&self) -> Option<gdk::Texture> {
         let paintable = self
             .imp()
             .media_child::<gtk::Picture>()

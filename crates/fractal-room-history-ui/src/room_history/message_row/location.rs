@@ -154,7 +154,7 @@ impl MessageLocation {
     }
 
     /// Set the `geo:` URI to display.
-    pub(crate) fn set_geo_uri(&self, uri: &str, format: ContentFormat) {
+    pub fn set_geo_uri(&self, uri: &str, format: ContentFormat) {
         self.imp().set_geo_uri(uri, format);
     }
 }

@@ -36,7 +36,7 @@ pub enum RoomCategory {
 impl RoomCategory {
     /// Check whether this `RoomCategory` can be changed to the given target
     /// category.
-    pub(crate) fn can_change_to(self, category: TargetRoomCategory) -> bool {
+    pub fn can_change_to(self, category: TargetRoomCategory) -> bool {
         match self {
             Self::Invited => {
                 matches!(
@@ -84,7 +84,7 @@ impl RoomCategory {
     }
 
     /// Whether this `RoomCategory` corresponds to the given state.
-    pub(crate) fn is_state(self, state: RoomState) -> bool {
+    pub fn is_state(self, state: RoomState) -> bool {
         match self {
             RoomCategory::Knocked => state == RoomState::Knocked,
             RoomCategory::Invited | RoomCategory::Ignored => state == RoomState::Invited,
@@ -98,7 +98,7 @@ impl RoomCategory {
     }
 
     /// Convert this `RoomCategory` into a `TargetRoomCategory`, if possible.
-    pub(crate) fn to_target_room_category(self) -> Option<TargetRoomCategory> {
+    pub fn to_target_room_category(self) -> Option<TargetRoomCategory> {
         let target = match self {
             RoomCategory::Favorite => TargetRoomCategory::Favorite,
             RoomCategory::Normal => TargetRoomCategory::Normal,
