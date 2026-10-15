@@ -82,6 +82,7 @@ mod imp {
         #[template_child]
         pub(super) session_view: TemplateChild<SessionView>,
         #[template_child]
+        #[property(get)]
         toast_overlay: TemplateChild<adw::ToastOverlay>,
         /// Whether the window should be in compact view.
         ///

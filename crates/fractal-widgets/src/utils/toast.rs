@@ -16,12 +16,13 @@ use crate::{
 /// can be anything that implements `AsRef<str>`.
 ///
 /// ```no_run
-/// use gettextts::gettext;
+/// use fractal_widgets::toast;
+/// use gettextrs::gettext;
 ///
-/// use crate::toast;
-///
-/// # let widget = unimplemented!();
+/// # use gtk::prelude::*;
+/// # fn example(widget: &gtk::Widget) {
 /// toast!(widget, gettext("Something happened"));
+/// # }
 /// ```
 ///
 /// This macro also supports replacing named variables with their value. It
@@ -29,33 +30,30 @@ use crate::{
 /// implement `ToString`.
 ///
 /// ```no_run
-/// use gettextts::gettext;
+/// use fractal_widgets::toast;
+/// use gettextrs::gettext;
 ///
-/// use crate::toast;
-///
-/// # let widget = unimplemented!();
-/// # let error_nb = 0;
+/// # use gtk::prelude::*;
+/// # fn example(widget: &gtk::Widget, error_nb: i32, msg: &str) {
 /// toast!(
 ///     widget,
 ///     gettext("Error number {n}: {msg}"),
 ///     n = error_nb.to_string(),
 ///     msg,
 /// );
+/// # }
 /// ```
 ///
 /// To add [`Pill`]s to the toast, you can precede a type that implements
 /// [`PillSource`] with `@`.
 ///
 /// ```no_run
-/// use gettextts::gettext;
-/// use crate::toast;
-/// use crate::session::{Room, User};
+/// use gettextrs::gettext;
+/// use fractal_widgets::toast;
+/// use fractal_widgets::session::{Member, Room};
 ///
-/// # let session = unimplemented!();
-/// # let room_id = unimplemented!();
-/// # let user_id = unimplemented!();
-/// let room = Room::new(session, room_id);
-/// let member = Member::new(room, user_id);
+/// # use gtk::prelude::*;
+/// # fn example(widget: &gtk::Widget, room: &Room, member: &Member) {
 ///
 /// toast!(
 ///     widget,
@@ -63,6 +61,7 @@ use crate::{
 ///     @user = member,
 ///     @room,
 /// );
+/// # }
 /// ```
 ///
 /// For this macro to work, the widget must have one of these ancestors that can
@@ -175,6 +174,10 @@ pub fn add_toast(widget: &gtk::Widget, toast: adw::Toast) {
         } else if let Some(overlay) = widget
             .ancestor(adw::ToastOverlay::static_type())
             .and_downcast::<adw::ToastOverlay>()
+            .or_else(|| {
+                root.find_property("toast-overlay")
+                    .map(|_| root.property::<adw::ToastOverlay>("toast-overlay"))
+            })
         {
             overlay.add_toast(toast);
         } else {
@@ -245,4 +248,56 @@ pub fn add_toast_with_vars(
     };
 
     add_toast(widget, toast);
+}
+
+#[cfg(test)]
+mod tests {
+    use gtk::{glib, subclass::prelude::*};
+
+    use super::*;
+
+    mod imp {
+        use super::*;
+
+        #[derive(Default, glib::Properties)]
+        #[properties(wrapper_type = super::ToastRoot)]
+        pub struct ToastRoot {
+            #[property(get)]
+            toast_overlay: adw::ToastOverlay,
+        }
+        #[glib::object_subclass]
+        impl ObjectSubclass for ToastRoot {
+            const NAME: &'static str = "TestToastRoot";
+            type Type = super::ToastRoot;
+            type ParentType = gtk::Window;
+        }
+        #[glib::derived_properties]
+        impl ObjectImpl for ToastRoot {}
+        impl WidgetImpl for ToastRoot {}
+        impl WindowImpl for ToastRoot {}
+    }
+    glib::wrapper! {
+        pub struct ToastRoot(ObjectSubclass<imp::ToastRoot>)
+            @extends gtk::Widget, gtk::Window,
+            @implements gtk::Accessible, gtk::Buildable, gtk::ConstraintTarget,
+                gtk::Native, gtk::Root, gtk::ShortcutManager;
+    }
+
+    #[gtk::test]
+    fn toasts_can_be_sent_from_the_root_window() {
+        adw::init().expect("Adwaita should initialize");
+        let root = glib::Object::new::<ToastRoot>();
+        let overlay = root.toast_overlay();
+        root.set_child(Some(&overlay));
+        let dismissed = std::rc::Rc::new(std::cell::Cell::new(false));
+        let toast = adw::Toast::new("Root toast");
+        toast.connect_dismissed({
+            let dismissed = dismissed.clone();
+            move |_| dismissed.set(true)
+        });
+        add_toast(root.upcast_ref(), toast);
+        overlay.dismiss_all();
+        assert!(dismissed.get());
+        root.close();
+    }
 }
