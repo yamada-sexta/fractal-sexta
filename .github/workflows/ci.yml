@@ -53,7 +53,10 @@ jobs:
             .id = $id |
             .branch = "nightly" |
             .modules[-1]["run-tests"] = true |
-            .modules[-1]["test-rule"] = "crates/fractal-app/src/cargo-test-ci" |
+            .modules[-1]["test-rule"] = "cargo-test-ci" |
+            .modules[-1]["build-options"]["test-args"] = ["--socket=x11", "--share=network",
+              "--filesystem=" + $cache, "--filesystem=" + $toolchain + ":ro",
+              "--env=PATH=" + $toolchain + "/bin:/app/bin:/usr/bin:/bin:/usr/lib/sdk/rust-stable/bin"] |
             .modules[-1]["build-options"].env.GDK_BACKEND = "x11" |
             .modules[-1]["build-options"].env.GSK_RENDERER = "gl" |
             .modules[-1]["build-options"].env.GTK_A11Y = "none" |

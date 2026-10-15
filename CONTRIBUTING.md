@@ -150,7 +150,7 @@ Also run [Clippy](https://doc.rust-lang.org/stable/clippy/index.html) in a build
 shares the FractalSexta build cache:
 
 ```sh
-meson compile -C {BUILD_DIRECTORY} crates/fractal-app/src/cargo-clippy
+meson compile -C {BUILD_DIRECTORY} cargo-clippy
 ```
 
 Omit `-C {BUILD_DIRECTORY}` when already in the build directory.
