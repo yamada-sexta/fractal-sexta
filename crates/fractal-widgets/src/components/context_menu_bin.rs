@@ -92,7 +92,7 @@ mod imp {
                 }
             ));
 
-            self.click_gesture.connect_released(clone!(
+            self.click_gesture.connect_pressed(clone!(
                 #[weak]
                 obj,
                 move |gesture, n_press, x, y| {

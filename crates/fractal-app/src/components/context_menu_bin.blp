@@ -6,6 +6,7 @@ template $ContextMenuBin: Gtk.Widget {
   Gtk.GestureClick click_gesture {
     button: 3;
     exclusive: true;
+    propagation-phase: capture;
   }
 
   Gtk.GestureLongPress long_press_gesture {

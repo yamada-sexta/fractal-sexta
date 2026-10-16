@@ -472,11 +472,17 @@ pub trait EventActionsGroup: ObjectSubclass {
         emoji_chooser.popup();
     }
 
-    /// Copy the text of this row.
+    /// Copy the selected text of this row, or the whole message.
     fn copy_text(&self)
     where
         Self::Type: IsA<gtk::Widget>,
     {
+        let obj = self.obj();
+        if copy_selection(obj.upcast_ref()) {
+            toast!(obj, gettext("Text copied to clipboard"));
+            return;
+        }
+
         let Some(event) = self.event() else {
             error!("Could not copy text of timeline item that is not an event");
             return;
@@ -506,7 +512,6 @@ pub trait EventActionsGroup: ObjectSubclass {
             }
         };
 
-        let obj = self.obj();
         obj.clipboard().set_text(&text);
         toast!(obj, gettext("Text copied to clipboard"));
     }
@@ -722,4 +727,34 @@ pub trait EventActionsGroup: ObjectSubclass {
             toast!(obj, gettext("Could not revoke invite of user"));
         }
     }
+}
+
+/// Copy the first selection in the visible widget tree.
+fn copy_selection(widget: &gtk::Widget) -> bool {
+    if !widget.is_mapped() {
+        return false;
+    }
+
+    if let Some(label) = widget.downcast_ref::<gtk::Label>() {
+        if label.selection_bounds().is_some() {
+            label.emit_copy_clipboard();
+            return true;
+        }
+    } else if let Some(view) = widget.downcast_ref::<gtk::TextView>() {
+        let buffer = view.buffer();
+        if buffer.has_selection() {
+            buffer.copy_clipboard(&widget.clipboard());
+            return true;
+        }
+    }
+
+    let mut child = widget.first_child();
+    while let Some(widget) = child {
+        if copy_selection(&widget) {
+            return true;
+        }
+        child = widget.next_sibling();
+    }
+
+    false
 }
