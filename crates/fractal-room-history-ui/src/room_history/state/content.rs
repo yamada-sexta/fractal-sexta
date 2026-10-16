@@ -94,7 +94,7 @@ mod imp {
         fn update_with_other_state(&self, other_state: &OtherState, sender: &Member) {
             let widget = match other_state.content() {
                 AnyOtherStateEventContentChange::RoomCreate(content) => {
-                    WidgetType::Creation(StateCreation::new(content))
+                    WidgetType::Creation(StateCreation::new(content, &sender.room()))
                 }
                 AnyOtherStateEventContentChange::RoomEncryption(_) => {
                     WidgetType::Text(gettext("This room is encrypted from this point on."))

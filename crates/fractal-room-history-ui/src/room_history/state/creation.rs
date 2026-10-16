@@ -4,6 +4,8 @@ use gtk::glib;
 use matrix_sdk::ruma::events::room::create::RoomCreateEventContent;
 use ruma::events::StateEventContentChange;
 
+use crate::session::Room;
+
 mod imp {
     use glib::subclass::InitializingObject;
 
@@ -16,6 +18,8 @@ mod imp {
         previous_room_btn: TemplateChild<gtk::Button>,
         #[template_child]
         description: TemplateChild<gtk::Label>,
+        #[template_child]
+        encryption_notice: TemplateChild<adw::PreferencesGroup>,
     }
 
     #[glib::object_subclass]
@@ -39,7 +43,16 @@ mod imp {
 
     impl StateCreation {
         /// Set the room create state event to display.
-        pub(super) fn set_event(&self, event: &StateEventContentChange<RoomCreateEventContent>) {
+        pub(super) fn set_event(
+            &self,
+            event: &StateEventContentChange<RoomCreateEventContent>,
+            room: &Room,
+        ) {
+            room.bind_property("is-encrypted", &*self.encryption_notice, "visible")
+                .invert_boolean()
+                .sync_create()
+                .build();
+
             let predecessor = match event {
                 StateEventContentChange::Original { content, .. } => content.predecessor.as_ref(),
                 StateEventContentChange::Redacted(_) => None,
@@ -71,9 +84,9 @@ glib::wrapper! {
 }
 
 impl StateCreation {
-    pub fn new(event: &StateEventContentChange<RoomCreateEventContent>) -> Self {
+    pub fn new(event: &StateEventContentChange<RoomCreateEventContent>, room: &Room) -> Self {
         let obj: Self = glib::Object::new();
-        obj.imp().set_event(event);
+        obj.imp().set_event(event, room);
         obj
     }
 }

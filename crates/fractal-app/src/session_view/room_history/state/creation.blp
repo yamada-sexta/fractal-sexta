@@ -4,20 +4,47 @@ using Adw 1;
 template $ContentStateCreation: Adw.Bin {
   focusable: true;
   valign: center;
-  halign: center;
+  hexpand: true;
 
   Gtk.Box {
-    spacing: 6;
+    orientation: vertical;
+    spacing: 12;
 
-    Gtk.Label description {
-      wrap: true;
-      wrap-mode: word_char;
+    Gtk.Box {
+      halign: center;
+      spacing: 6;
+
+      Gtk.Label description {
+        wrap: true;
+        wrap-mode: word_char;
+      }
+
+      Gtk.Button previous_room_btn {
+        can-shrink: true;
+        action-name: "session.show-room";
+        label: _("View");
+      }
     }
 
-    Gtk.Button previous_room_btn {
-      can-shrink: true;
-      action-name: "session.show-room";
-      label: _("View");
+    Adw.PreferencesGroup encryption_notice {
+      margin-top: 6;
+      margin-bottom: 6;
+
+      Adw.ActionRow {
+        title: _("End-to-end encryption is off");
+
+        [prefix]
+        Gtk.Image {
+          icon-name: "dialog-information-symbolic";
+        }
+
+        [suffix]
+        Gtk.Button {
+          valign: center;
+          label: _("Settings");
+          action-name: "room-history.details";
+        }
+      }
     }
   }
 }
