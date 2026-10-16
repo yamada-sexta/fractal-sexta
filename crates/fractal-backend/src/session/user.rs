@@ -2,7 +2,12 @@ use gtk::{glib, glib::clone, prelude::*, subclass::prelude::*};
 use matrix_sdk::encryption::identities::UserIdentity;
 use ruma::{
     MatrixToUri, OwnedMxcUri, OwnedUserId,
-    api::client::profile::{AvatarUrl, DisplayName},
+    api::client::{
+        keys::get_keys,
+        profile::{AvatarUrl, DisplayName},
+        room::create_room::v3::{Request as CreateRoomRequest, RoomPreset},
+    },
+    assign,
 };
 use tracing::{debug, error};
 
@@ -193,11 +198,32 @@ mod imp {
             self.obj().notify_is_verified();
         }
 
-        /// Create an encrypted direct chat with this user.
+        /// Create a direct chat, encrypted if this user has encryption-capable devices.
         pub(super) async fn create_direct_chat(&self) -> Result<Room, matrix_sdk::Error> {
             let user_id = self.user_id().clone();
             let client = self.session().client();
-            let handle = spawn_tokio!(async move { client.create_dm(&user_id).await });
+            let handle = spawn_tokio!(async move {
+                // Query keys first: an untracked user's devices may not be cached yet.
+                let mut request = get_keys::v3::Request::new();
+                request.device_keys.insert(user_id.clone(), vec![]);
+                let response = client.send(request).await?;
+                let has_devices = response
+                    .device_keys
+                    .get(&user_id)
+                    .is_some_and(|devices| !devices.is_empty());
+
+                // A failed federation lookup must not silently disable encryption.
+                if has_devices || !response.failures.is_empty() {
+                    client.create_dm(&user_id).await
+                } else {
+                    let request = assign!(CreateRoomRequest::new(), {
+                        invite: vec![user_id],
+                        is_direct: true,
+                        preset: Some(RoomPreset::TrustedPrivateChat),
+                    });
+                    client.create_room(request).await
+                }
+            });
 
             match handle.await.expect("task was not aborted") {
                 Ok(matrix_room) => {
