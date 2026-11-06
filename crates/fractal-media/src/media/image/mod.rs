@@ -215,28 +215,23 @@ pub fn update_image_background(picture: &gtk::Picture, background: &impl IsA<gtk
                     downloader.set_color_state(&gdk::ColorState::srgb());
                     let (data, stride) = downloader.download_bytes();
                     let width = texture.width() as usize;
-                    let height = texture.height() as usize;
-                    let linear = |channel: u8| {
-                        let channel = f64::from(channel) / 255.0;
+                    let linear: [f64; 256] = std::array::from_fn(|channel| {
+                        let channel = channel as f64 / 255.0;
                         if channel <= 0.04045 {
                             channel / 12.92
                         } else {
                             ((channel + 0.055) / 1.055).powf(2.4)
                         }
-                    };
+                    });
                     let mut luminance = 0.0;
                     let mut alpha = 0.0;
-                    // shortcut: sample up to 64×64 pixels, increase for tiny sparse artwork.
-                    for row in data.chunks(stride).step_by(height.div_ceil(64)) {
-                        for pixel in row[..width * 4]
-                            .chunks_exact(4)
-                            .step_by(width.div_ceil(64))
-                        {
+                    for row in data.chunks(stride) {
+                        for pixel in row[..width * 4].chunks_exact(4) {
                             let weight = f64::from(pixel[3]) / 255.0;
                             luminance += weight
-                                * (0.2126 * linear(pixel[0])
-                                    + 0.7152 * linear(pixel[1])
-                                    + 0.0722 * linear(pixel[2]));
+                                * (0.2126 * linear[usize::from(pixel[0])]
+                                    + 0.7152 * linear[usize::from(pixel[1])]
+                                    + 0.0722 * linear[usize::from(pixel[2])]);
                             alpha += weight;
                         }
                     }
