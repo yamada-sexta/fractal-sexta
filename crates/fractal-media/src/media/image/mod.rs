@@ -184,6 +184,89 @@ impl Image {
     }
 }
 
+/// Choose the background with the most contrast against the visible image pixels.
+pub fn update_image_background(picture: &gtk::Picture, background: &impl IsA<gtk::Widget>) {
+    let background = background.upcast_ref::<gtk::Widget>();
+    background.remove_css_class("image-background-light");
+    background.remove_css_class("image-background-dark");
+
+    let Some(paintable) = picture.paintable() else {
+        return;
+    };
+    let texture = if let Some(animated) = paintable.downcast_ref::<AnimatedImagePaintable>() {
+        animated.current_texture()
+    } else {
+        paintable.clone().downcast::<gdk::Texture>().ok()
+    };
+    let Some(texture) = texture else {
+        return;
+    };
+
+    crate::spawn!(glib::clone!(
+        #[weak]
+        picture,
+        #[weak]
+        background,
+        async move {
+            let light_background = RUNTIME
+                .spawn_blocking(move || {
+                    let mut downloader = gdk::TextureDownloader::new(&texture);
+                    downloader.set_format(gdk::MemoryFormat::R8g8b8a8);
+                    downloader.set_color_state(&gdk::ColorState::srgb());
+                    let (data, stride) = downloader.download_bytes();
+                    let width = texture.width() as usize;
+                    let height = texture.height() as usize;
+                    let linear = |channel: u8| {
+                        let channel = f64::from(channel) / 255.0;
+                        if channel <= 0.04045 {
+                            channel / 12.92
+                        } else {
+                            ((channel + 0.055) / 1.055).powf(2.4)
+                        }
+                    };
+                    let mut luminance = 0.0;
+                    let mut alpha = 0.0;
+                    // shortcut: sample up to 64×64 pixels, increase for tiny sparse artwork.
+                    for row in data.chunks(stride).step_by(height.div_ceil(64)) {
+                        for pixel in row[..width * 4]
+                            .chunks_exact(4)
+                            .step_by(width.div_ceil(64))
+                        {
+                            let weight = f64::from(pixel[3]) / 255.0;
+                            luminance += weight
+                                * (0.2126 * linear(pixel[0])
+                                    + 0.7152 * linear(pixel[1])
+                                    + 0.0722 * linear(pixel[2]));
+                            alpha += weight;
+                        }
+                    }
+                    if alpha == 0.0 {
+                        return None;
+                    }
+                    let luminance = luminance / alpha;
+                    let white_contrast = 1.05 / (luminance + 0.05);
+                    let black_contrast = (luminance + 0.05) / 0.05;
+                    debug_assert!(white_contrast.max(black_contrast) >= 4.5);
+                    Some(white_contrast > black_contrast)
+                })
+                .await
+                .inspect_err(|error| warn!("Image background analysis failed: {error}"))
+                .ok()
+                .flatten();
+
+            if picture.paintable().as_ref() == Some(&paintable)
+                && let Some(light_background) = light_background
+            {
+                background.add_css_class(if light_background {
+                    "image-background-light"
+                } else {
+                    "image-background-dark"
+                });
+            }
+        }
+    ));
+}
+
 impl fmt::Debug for Image {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Image").finish_non_exhaustive()

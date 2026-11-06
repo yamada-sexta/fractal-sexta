@@ -15,7 +15,10 @@ use crate::{
         matrix::{MessageCacheKey, VisualMediaMessage, VisualMediaType},
         media::{
             FrameDimensions,
-            image::{ImageRequestPriority, THUMBNAIL_MAX_DIMENSIONS, ThumbnailSettings},
+            image::{
+                ImageRequestPriority, THUMBNAIL_MAX_DIMENSIONS, ThumbnailSettings,
+                update_image_background,
+            },
         },
     },
 };
@@ -399,6 +402,7 @@ mod imp {
                 };
 
                 placeholder.set_paintable(Some(&texture));
+                update_image_background(&placeholder, &placeholder);
             } else if let Some(placeholder) = self.placeholder.take() {
                 self.stack.remove(&placeholder);
                 self.overlay.remove_css_class("has-placeholder");
@@ -719,12 +723,14 @@ mod imp {
 
                 if let Some(child) = self.media_child::<gtk::Picture>() {
                     child.set_paintable(Some(&paintable));
+                    update_image_background(&child, &child);
                     self.obj().notify_texture();
                 } else {
                     let child = gtk::Picture::builder()
                         .content_fit(gtk::ContentFit::ScaleDown)
                         .build();
                     child.set_paintable(Some(&paintable));
+                    update_image_background(&child, &child);
                     self.set_media_child(Some(&child));
                 }
             }

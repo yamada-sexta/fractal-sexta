@@ -9,7 +9,10 @@ use crate::{
     MEDIA_FILE_NOTIFIER,
     components::ContextMenuBin,
     prelude::*,
-    utils::{CountedRef, File, media::image::IMAGE_QUEUE},
+    utils::{
+        CountedRef, File,
+        media::image::{IMAGE_QUEUE, update_image_background},
+    },
 };
 
 mod imp {
@@ -112,6 +115,7 @@ mod imp {
             };
 
             picture.set_paintable(Some(image));
+            update_image_background(&picture, &*self.obj());
             self.update_animated_paintable_state();
             self.set_visible_child("viewer");
         }
@@ -230,6 +234,12 @@ mod imp {
 
         /// Clear the viewer.
         pub(super) fn clear(&self) {
+            if let Some(picture) = self.media_child::<gtk::Picture>() {
+                picture.set_paintable(None::<&gdk::Paintable>);
+            }
+            self.obj().remove_css_class("image-background-light");
+            self.obj().remove_css_class("image-background-dark");
+
             if let Some(video) = self.media_child::<gtk::Video>() {
                 video.set_file(None::<&gio::File>);
             }

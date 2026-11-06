@@ -10,7 +10,7 @@ use crate::{
         matrix::VisualMediaMessage,
         media::{
             FrameDimensions,
-            image::{Blurhash, ImageRequestPriority, ThumbnailSettings},
+            image::{Blurhash, ImageRequestPriority, ThumbnailSettings, update_image_background},
         },
     },
 };
@@ -140,6 +140,7 @@ mod imp {
             }
             self.preview.take();
             self.picture.set_paintable(None::<&gdk::Paintable>);
+            update_image_background(&self.picture, &*self.picture);
         }
 
         /// Update this item for the current state.
@@ -202,6 +203,7 @@ mod imp {
             // loaded before.
             if self.preview.get() != MediaPreview::Thumbnail {
                 self.picture.set_paintable(Some(&placeholder_texture));
+                update_image_background(&self.picture, &*self.picture);
                 self.preview.set(MediaPreview::Placeholder);
             }
         }
@@ -231,6 +233,7 @@ mod imp {
             {
                 self.picture
                     .set_paintable(Some(&gdk::Paintable::from(image)));
+                update_image_background(&self.picture, &*self.picture);
                 self.preview.set(MediaPreview::Thumbnail);
             }
         }
