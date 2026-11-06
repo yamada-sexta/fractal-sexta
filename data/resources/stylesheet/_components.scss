@@ -69,6 +69,19 @@ media-content-viewer controls {
   min-width: 300px;
 }
 
+// Keep transparent artwork visible and outline solid images in either theme.
+media-content-viewer > stack > * > picture,
+message-visual-media .visual-content.opaque-bg > stack > picture,
+visual-media-history-viewer-item > overlay > picture {
+  background-color: white;
+  background-image:
+    linear-gradient(45deg, #aaa 25%, transparent 25%, transparent 75%, #aaa 75%),
+    linear-gradient(45deg, #aaa 25%, transparent 25%, transparent 75%, #aaa 75%);
+  background-position: 0 0, 8px 8px;
+  background-size: 16px 16px;
+  border: 1px solid #808080;
+}
+
 location-viewer .map-marker {
   color: var(--accent-bg-color);
 }
