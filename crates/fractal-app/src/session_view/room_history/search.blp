@@ -56,10 +56,15 @@ template $RoomSearchDialog: Adw.Dialog {
             styles ["boxed-list"]
           }
 
-          Adw.ExpanderRow filters {
-            title: _("Filters");
-            subtitle: _("Match any included kind; hide excluded kinds");
-            expanded: true;
+          Gtk.ListBox {
+            selection-mode: none;
+            styles ["boxed-list"]
+
+            Adw.ExpanderRow filters {
+              title: _("Filters");
+              subtitle: _("Match any included kind; hide excluded kinds");
+              expanded: true;
+            }
           }
         }
       }
