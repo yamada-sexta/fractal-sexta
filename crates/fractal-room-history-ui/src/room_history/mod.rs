@@ -91,6 +91,8 @@ mod imp {
         search_dialog: RefCell<Option<RoomSearchDialog>>,
         live_timeline: RefCell<Option<Timeline>>,
         context_target: RefCell<Option<OwnedEventId>>,
+        context_loading_newer: Cell<bool>,
+        context_reached_end: Cell<bool>,
         #[template_child]
         pending_knocks_banner: TemplateChild<adw::Banner>,
         #[template_child]
@@ -196,7 +198,9 @@ mod imp {
                         return;
                     };
 
-                    obj.imp().scroll_to_event(&event_key);
+                    if !obj.imp().scroll_to_event(&event_key) {
+                        toast!(obj, gettext("This message is unavailable or cannot be shown"));
+                    }
                 },
             );
 
@@ -558,6 +562,8 @@ mod imp {
             self.message_toolbar.set_visible(is_live);
             self.context_banner.set_revealed(!is_live);
             self.context_controls.set_visible(!is_live);
+            self.context_loading_newer.set(false);
+            self.context_reached_end.set(false);
             self.context_newer.set_sensitive(false);
             for action in ["room-history.reply", "room-history.edit", "room-history.edit-latest-message"] {
                 self.obj().action_set_enabled(action, is_live);
@@ -656,13 +662,15 @@ mod imp {
                         // This is mostly to make sure that we load events if the timeline was not
                         // initialized when the room was opened.
                         if timeline.state() == LoadingState::Ready {
-                            if !timeline.is_live() { imp.context_newer.set_sensitive(true); }
                             if let Some(id) = imp.context_target.borrow().clone() {
                                 glib::idle_add_local_once(clone!(#[weak] imp, #[weak] timeline, move || {
                                     if imp.timeline.obj().as_ref() != Some(&timeline) { return; }
-                                    imp.context_target.take();
                                     imp.set_sticky(false);
-                                    imp.scroll_to_event(&TimelineEventItemId::EventId(id));
+                                    if imp.scroll_to_event(&TimelineEventItemId::EventId(id)) {
+                                        imp.context_target.take();
+                                    } else {
+                                        toast!(imp.obj(), gettext("This message is unavailable or cannot be shown"));
+                                    }
                                 }));
                             } else {
                                 imp.load_more_events_if_needed();
@@ -876,14 +884,35 @@ mod imp {
             self.room_menu.set_visible(true);
         }
 
+        fn update_context_newer(&self) {
+            self.context_newer.set_sensitive(
+                self.timeline.obj().is_some_and(|timeline| {
+                    !timeline.is_live() && timeline.state() == LoadingState::Ready
+                }) && !self.context_loading_newer.get() && !self.context_reached_end.get(),
+            );
+        }
+
         /// Update the view for the current state.
         fn update_view(&self) {
+            self.update_context_newer();
             let Some(timeline) = self.timeline.obj() else {
                 return;
             };
 
+            self.error.set_title(&if timeline.is_live() {
+                gettext("Could Not Load Room")
+            } else {
+                gettext("Could Not Load Message")
+            });
+            self.error.set_description(Some(&if timeline.is_live() {
+                gettext("Check your network connection")
+            } else {
+                gettext("Try again or return to the latest messages")
+            }));
             let visible_child_name = if timeline.is_empty() {
-                if timeline.state() == LoadingState::Error {
+                if timeline.state() == LoadingState::Error
+                    || (!timeline.is_live() && timeline.state() == LoadingState::Ready)
+                {
                     "error"
                 } else {
                     "loading"
@@ -973,7 +1002,8 @@ mod imp {
         #[template_callback]
         fn load_more_events(&self) {
             if let Some(timeline) = self.timeline.obj()
-                && !timeline.is_live() && timeline.state() == LoadingState::Error
+                && !timeline.is_live()
+                && (timeline.state() == LoadingState::Error || timeline.is_empty())
                 && let Some(id) = self.context_target.borrow().clone() {
                 self.obj().set_timeline(Some(Timeline::for_event(&timeline.room(), &id)));
                 return;
@@ -985,18 +1015,20 @@ mod imp {
         async fn load_newer_context(&self) {
             let Some(timeline) = self.timeline.obj() else { return; };
             if timeline.is_live() || timeline.state() != LoadingState::Ready
-                || !self.context_newer.is_sensitive() { return; }
-            self.context_newer.set_sensitive(false);
+                || self.context_loading_newer.get() || self.context_reached_end.get() { return; }
+            self.context_loading_newer.set(true);
+            self.update_context_newer();
             let matrix_timeline = timeline.matrix_timeline();
             let result = crate::spawn_tokio!(async move { matrix_timeline.paginate_forwards(20).await }).await;
             if self.timeline.obj().as_ref() != Some(&timeline) { return; }
+            self.context_loading_newer.set(false);
             match result {
-                Ok(Ok(reached_end)) => self.context_newer.set_sensitive(!reached_end),
+                Ok(Ok(reached_end)) => self.context_reached_end.set(reached_end),
                 _ => {
-                    self.context_newer.set_sensitive(true);
                     toast!(self.obj(), gettext("Could not load newer messages. Try again."));
                 }
             }
+            self.update_context_newer();
         }
 
         #[template_callback]
@@ -1024,7 +1056,9 @@ mod imp {
             let key = TimelineEventItemId::EventId(id.clone());
             if timeline.find_event_position(&key).is_some() {
                 self.set_sticky(false);
-                self.scroll_to_event(&key);
+                if !self.scroll_to_event(&key) {
+                    toast!(self.obj(), gettext("This message is unavailable or cannot be shown"));
+                }
                 return;
             }
             if timeline.is_live() { self.live_timeline.replace(Some(timeline.clone())); }
@@ -1032,20 +1066,21 @@ mod imp {
             self.obj().set_timeline(Some(Timeline::for_event(&timeline.room(), &id)));
         }
 
-        /// Scroll to the event with the given identifier.
-        fn scroll_to_event(&self, key: &TimelineEventItemId) {
+        /// Scroll to the event, returning whether it exists in the displayed model.
+        fn scroll_to_event(&self, key: &TimelineEventItemId) -> bool {
             let Some(timeline) = self.timeline.obj() else {
-                return;
+                return false;
             };
-
-            if let Some(pos) = timeline.find_event_position(key) {
-                let pos = self.history_model().reveal_position(pos as u32);
-                let Some(pos) = self.grouping_model().position_for_source_position(pos) else {
-                    return;
-                };
-                self.listview
-                    .scroll_to(pos, gtk::ListScrollFlags::FOCUS, None);
-            }
+            let Some(pos) = timeline.find_event_position(key) else {
+                return false;
+            };
+            let pos = self.history_model().reveal_position(pos as u32);
+            let Some(pos) = self.grouping_model().position_for_source_position(pos) else {
+                return false;
+            };
+            self.listview
+                .scroll_to(pos, gtk::ListScrollFlags::FOCUS, None);
+            true
         }
 
         /// The ancestor window of the room history.
