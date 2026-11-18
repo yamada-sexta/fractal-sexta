@@ -22,7 +22,6 @@ futures-util.workspace = true
 gettext-rs.workspace = true
 gtk.workspace = true
 indexmap.workspace = true
-linkify.workspace = true
 matrix-sdk.workspace = true
 matrix-sdk-store-encryption.workspace = true
 matrix-sdk-ui.workspace = true

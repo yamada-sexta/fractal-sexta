@@ -1228,7 +1228,6 @@ dependencies = [
  "gettext-rs",
  "gtk4",
  "indexmap",
- "linkify",
  "matrix-sdk",
  "matrix-sdk-store-encryption",
  "matrix-sdk-ui",

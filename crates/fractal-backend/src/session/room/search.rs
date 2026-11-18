@@ -3,7 +3,6 @@
 use std::collections::{HashMap, HashSet};
 
 use gtk::glib;
-use linkify::{LinkFinder, LinkKind};
 use matrix_sdk::{
     Room as MatrixRoom, check_validity_of_replacement_events,
     deserialized_responses::TimelineEvent,
@@ -254,10 +253,10 @@ impl SearchMessage {
             MessageType::Emote(m) => (None, Some(m.body.as_str()), m.formatted.as_ref()),
             _ => (None, Some(msgtype.body()), None),
         };
-        let mut finder = LinkFinder::new();
-        finder.kinds(&[LinkKind::Url]);
-        finder.url_must_have_scheme(false);
-        let has_link = caption.is_some_and(|text| finder.links(text).next().is_some())
+        // The renderer escapes source text, so only generated links contain an anchor.
+        let has_link = caption.is_some_and(|text| {
+            fractal_core::string::linkify(text).contains("<a ")
+        })
             || formatted.is_some_and(|formatted| html_has_link(&Html::parse(&formatted.body)));
         let preview = match (caption, filename) {
             (Some(caption), Some(filename)) => format!("{caption}\n{filename}"),
