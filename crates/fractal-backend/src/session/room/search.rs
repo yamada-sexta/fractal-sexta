@@ -8,7 +8,7 @@ use matrix_sdk::{
     deserialized_responses::TimelineEvent,
 };
 use ruma::{
-    OwnedEventId, OwnedUserId,
+    MilliSecondsSinceUnixEpoch, OwnedEventId, OwnedUserId,
     events::{
         AnySyncMessageLikeEvent, AnySyncTimelineEvent, SyncMessageLikeEvent,
         room::message::{MessageType, OriginalSyncRoomMessageEvent, Relation},
@@ -156,11 +156,14 @@ impl RoomSearchSnapshot {
             }
         }
 
+        let now = MilliSecondsSinceUnixEpoch::now();
         for (id, mut message) in messages {
             if redacted.contains(&id) {
                 continue;
             }
             let original = &events[&id];
+            // Legacy cache entries may lack the SDK's corrected timestamp.
+            message.origin_server_ts = original.timestamp.unwrap_or(message.origin_server_ts).min(now);
             let mut candidates = edits.remove(&id).unwrap_or_default();
             if let Some(bundled) = message.unsigned.relations.replace.as_deref() {
                 candidates.push(bundled.clone());
