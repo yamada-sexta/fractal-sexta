@@ -1092,6 +1092,22 @@ impl Timeline {
     }
 }
 
+/// Whether this message type can be displayed in the room timeline.
+pub fn is_supported_message(msgtype: &MessageType) -> bool {
+    matches!(
+        msgtype,
+        MessageType::Audio(_)
+            | MessageType::Emote(_)
+            | MessageType::File(_)
+            | MessageType::Image(_)
+            | MessageType::Location(_)
+            | MessageType::Notice(_)
+            | MessageType::ServerNotice(_)
+            | MessageType::Text(_)
+            | MessageType::Video(_)
+    )
+}
+
 /// Whether the given event should be shown in the timeline.
 fn show_in_timeline(
     any: &AnySyncTimelineEvent,
@@ -1107,18 +1123,7 @@ fn show_in_timeline(
     match any {
         AnySyncTimelineEvent::MessageLike(msg) => match msg {
             AnySyncMessageLikeEvent::RoomMessage(SyncMessageLikeEvent::Original(ev)) => {
-                matches!(
-                    ev.content.msgtype,
-                    MessageType::Audio(_)
-                        | MessageType::Emote(_)
-                        | MessageType::File(_)
-                        | MessageType::Image(_)
-                        | MessageType::Location(_)
-                        | MessageType::Notice(_)
-                        | MessageType::ServerNotice(_)
-                        | MessageType::Text(_)
-                        | MessageType::Video(_)
-                )
+                is_supported_message(&ev.content.msgtype)
             }
             AnySyncMessageLikeEvent::Sticker(SyncMessageLikeEvent::Original(_))
             | AnySyncMessageLikeEvent::RoomEncrypted(SyncMessageLikeEvent::Original(_)) => true,

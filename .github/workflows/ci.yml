@@ -44,7 +44,7 @@ jobs:
           # Free the hosted runner's unused mobile and .NET SDK space for Rust builds.
           sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
           sudo apt-get update
-          sudo apt-get install -y flatpak flatpak-builder ostree appstream desktop-file-utils xvfb xauth dbus-x11
+          sudo apt-get install -y --no-install-recommends flatpak flatpak-builder ostree appstream appstream-compose elfutils desktop-file-utils xvfb xauth dbus-x11
           flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
           flatpak remote-add --user --if-not-exists gnome-nightly https://nightly.gnome.org/gnome-nightly.flatpakrepo
       - name: Cache release Rust toolchain

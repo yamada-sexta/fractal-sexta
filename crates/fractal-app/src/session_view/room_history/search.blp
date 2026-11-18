@@ -63,13 +63,14 @@ template $RoomSearchDialog: Adw.Dialog {
             Adw.ExpanderRow filters {
               title: _("Filters");
               subtitle: _("Match any included kind; hide excluded kinds");
-              expanded: true;
+              expanded: false;
             }
           }
         }
       }
 
       Gtk.Label status {
+        accessible-role: status;
         wrap: true;
         xalign: 0;
         margin-start: 12;

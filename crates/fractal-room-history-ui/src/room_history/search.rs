@@ -15,6 +15,11 @@ use crate::{
     spawn, spawn_tokio, utils::matrix::timestamp_to_date,
 };
 
+struct SearchResult {
+    message: Arc<SearchMessage>,
+    excerpt: String,
+}
+
 mod imp {
     use super::*;
 
@@ -71,15 +76,19 @@ mod imp {
         fn constructed(&self) {
             self.parent_constructed();
             let mut controls = Vec::new();
-            for title in [
+            for (index, title) in [
                 gettext("Links"), gettext("Attachments"), gettext("Images"),
                 gettext("Videos"), gettext("Audio"), gettext("Documents / Files"),
-            ] {
+            ].into_iter().enumerate() {
+                let choices = if index < 2 {
+                    [gettext("Any"), gettext("Has"), gettext("Does not have")]
+                } else {
+                    [gettext("Any"), gettext("Include"), gettext("Exclude")]
+                };
                 let row = adw::ComboRow::builder()
                     .title(title)
                     .model(&gtk::StringList::new(&[
-                        &gettext("Any"), &gettext("Has / Include"),
-                        &gettext("Does Not Have / Exclude"),
+                        &choices[0], &choices[1], &choices[2],
                     ]))
                     .build();
                 row.connect_selected_notify(clone!(
@@ -94,6 +103,46 @@ mod imp {
             self.results
                 .set_model(Some(&gtk::NoSelection::new(Some(self.model().clone()))));
             let factory = gtk::SignalListItemFactory::new();
+            factory.connect_setup(clone!(
+                #[weak(rename_to = obj)]
+                self.obj(),
+                move |_, item| {
+                    let Some(item) = item.downcast_ref::<gtk::ListItem>() else { return; };
+                    let row = gtk::Box::builder()
+                        .orientation(gtk::Orientation::Vertical)
+                        .spacing(6)
+                        .margin_top(8).margin_bottom(8).margin_start(8).margin_end(8)
+                        .build();
+                    let heading = gtk::Label::builder()
+                        .xalign(0.0).wrap(true)
+                        .wrap_mode(gtk::pango::WrapMode::WordChar).build();
+                    heading.add_css_class("heading");
+                    row.append(&heading);
+                    let preview = gtk::Label::builder()
+                        .xalign(0.0).wrap(true)
+                        .wrap_mode(gtk::pango::WrapMode::WordChar)
+                        .lines(4).ellipsize(gtk::pango::EllipsizeMode::End)
+                        .selectable(true).build();
+                    row.append(&preview);
+                    let jump = gtk::Button::builder()
+                        .label(gettext("Jump to Message")).halign(gtk::Align::End).build();
+                    jump.connect_clicked(clone!(
+                        #[weak]
+                        obj,
+                        #[weak]
+                        item,
+                        move |_| {
+                            let Some(value) = item.item().and_downcast::<glib::BoxedAnyObject>() else {
+                                return;
+                            };
+                            let id = value.borrow::<SearchResult>().message.event_id.clone();
+                            obj.imp().jump(id);
+                        }
+                    ));
+                    row.append(&jump);
+                    item.set_child(Some(&row));
+                }
+            ));
             factory.connect_bind(clone!(
                 #[weak(rename_to = obj)]
                 self.obj(),
@@ -102,36 +151,42 @@ mod imp {
                     let Some(value) = item.item().and_downcast::<glib::BoxedAnyObject>() else {
                         return;
                     };
-                    let message = value.borrow::<SearchMessage>();
-                    let row = gtk::Box::builder()
-                        .orientation(gtk::Orientation::Vertical)
-                        .spacing(6)
-                        .margin_top(8).margin_bottom(8).margin_start(8).margin_end(8)
-                        .build();
+                    let Some(row) = item.child().and_downcast::<gtk::Box>() else { return; };
+                    let Some(heading) = row.first_child().and_downcast::<gtk::Label>() else {
+                        return;
+                    };
+                    let Some(preview) = heading.next_sibling().and_downcast::<gtk::Label>() else {
+                        return;
+                    };
+                    let result = value.borrow::<SearchResult>();
+                    let message = &result.message;
                     let sender = obj.imp().room.get().unwrap()
-                        .get_or_create_members().get_or_create(message.event.sender.clone());
-                    let timestamp = timestamp_to_date(message.event.origin_server_ts)
+                        .get_or_create_members().get(&message.sender)
+                        .map_or_else(|| message.sender.to_string(), |member| member.display_name());
+                    let timestamp = timestamp_to_date(message.timestamp)
                         .format("%x %X").map(|s| s.to_string()).unwrap_or_default();
-                    let heading = gtk::Label::builder()
-                        .label(format!("{} · {timestamp}", sender.display_name()))
-                        .xalign(0.0).wrap(true).build();
-                    heading.set_tooltip_text(Some(message.event.sender.as_str()));
-                    heading.add_css_class("heading");
-                    row.append(&heading);
-                    let preview = gtk::Label::builder()
-                        .label(&message.preview).xalign(0.0).wrap(true)
-                        .wrap_mode(gtk::pango::WrapMode::WordChar)
-                        .lines(4).ellipsize(gtk::pango::EllipsizeMode::End)
-                        .selectable(true).build();
-                    row.append(&preview);
-                    let jump = gtk::Button::builder()
-                        .label(gettext("Jump to Message")).halign(gtk::Align::End).build();
-                    let id = message.event.event_id.clone();
-                    jump.connect_clicked(clone!(#[weak] obj, move |_| obj.imp().jump(id.clone())));
-                    row.append(&jump);
-                    item.set_child(Some(&row));
+                    heading.set_label(&format!("{sender} · {timestamp}"));
+                    heading.set_tooltip_text(Some(message.sender.as_str()));
+                    preview.set_label(&result.excerpt);
+                    if let Some(jump) = row.last_child().and_downcast::<gtk::Button>() {
+                        jump.set_sensitive(true);
+                    }
                 }
             ));
+            factory.connect_unbind(|_, item| {
+                let Some(item) = item.downcast_ref::<gtk::ListItem>() else { return; };
+                let Some(row) = item.child() else { return; };
+                let mut child = row.first_child();
+                while let Some(widget) = child {
+                    if let Some(label) = widget.downcast_ref::<gtk::Label>() {
+                        label.set_label("");
+                        label.set_tooltip_text(None);
+                    } else if let Some(button) = widget.downcast_ref::<gtk::Button>() {
+                        button.set_sensitive(false);
+                    }
+                    child = widget.next_sibling();
+                }
+            });
             self.results.set_factory(Some(&factory));
             self.obj().connect_closed(|obj| {
                 let imp = obj.imp();
@@ -209,20 +264,53 @@ mod imp {
             let worker = crate::RUNTIME.spawn_blocking(move || {
                 snapshot.messages.iter()
                     .take_while(|_| !cancelled.load(Ordering::Relaxed))
-                    .filter(|m| filter.matches(m)).cloned().collect::<Vec<_>>()
+                    .filter(|message| filter.matches(message))
+                    .map(|message| SearchResult {
+                        message: message.clone(),
+                        excerpt: message.excerpt(&filter.text),
+                    })
+                    .collect::<Vec<_>>()
             });
             self.task.replace(Some(worker.abort_handle()));
             spawn!(clone!(
                 #[weak(rename_to = obj)]
                 self.obj(),
                 async move {
-                    let Ok(messages) = worker.await else { return; };
+                    let result = worker.await;
                     let imp = obj.imp();
                     if !imp.active.get() || imp.generation.get() != generation { return; }
                     imp.task.take();
-                    let values: Vec<_> = messages.into_iter().map(glib::BoxedAnyObject::new).collect();
-                    imp.model().splice(0, imp.model().n_items(), &values);
-                    imp.update_status();
+                    let messages = match result {
+                        Ok(messages) => messages,
+                        Err(error) => {
+                            imp.status.set_label(&gettext("Could not search history. Try again."));
+                            error!("Room history matching task failed: {error}");
+                            return;
+                        }
+                    };
+                    imp.model().remove_all();
+                    let mut messages = messages.into_iter();
+                    glib::idle_add_local(clone!(
+                        #[weak]
+                        obj,
+                        #[upgrade_or]
+                        glib::ControlFlow::Break,
+                        move || {
+                            let imp = obj.imp();
+                            if !imp.active.get() || imp.generation.get() != generation {
+                                return glib::ControlFlow::Break;
+                            }
+                            let values: Vec<_> = messages.by_ref().take(100)
+                                .map(glib::BoxedAnyObject::new).collect();
+                            imp.model().splice(imp.model().n_items(), 0, &values);
+                            if messages.len() == 0 {
+                                imp.update_status();
+                                glib::ControlFlow::Break
+                            } else {
+                                glib::ControlFlow::Continue
+                            }
+                        }
+                    ));
                 }
             ));
         }
@@ -318,20 +406,19 @@ mod imp {
             });
             let generation = self.generation.get();
             let room = self.room.get().unwrap().matrix_room().clone();
+            let previous = self.snapshot.borrow().clone();
+            let cancelled = Arc::new(AtomicBool::new(false));
+            self.cancelled.replace(Some(cancelled.clone()));
             let worker = spawn_tokio!(async move {
-                let pagination_result = match room.event_cache().await {
-                    Ok((cache, _handles)) => {
-                        if older {
-                            cache.pagination().run_backwards_once(100).await
-                                .map(|outcome| outcome.reached_start).map_err(|e| e.to_string())
-                        } else {
-                            Ok(matches!(cache.pagination().status().get(),
-                                matrix_sdk::event_cache::PaginationStatus::Idle { hit_timeline_start: true }))
-                        }
-                    }
-                    Err(e) => Err(e.to_string()),
+                let pagination_result = if older {
+                    RoomSearchSnapshot::load_older(&room, &previous.event_ids, &cancelled).await
+                } else {
+                    room.event_cache().await.map(|(cache, _handles)| {
+                        matches!(cache.pagination().status().get(),
+                            matrix_sdk::event_cache::PaginationStatus::Idle { hit_timeline_start: true })
+                    }).map_err(|error| error.to_string())
                 };
-                let snapshot = RoomSearchSnapshot::load(&room).await;
+                let snapshot = RoomSearchSnapshot::load(&room, cancelled).await;
                 (pagination_result, snapshot)
             });
             self.task.replace(Some(worker.abort_handle()));
@@ -339,10 +426,21 @@ mod imp {
                 #[weak(rename_to = obj)]
                 self.obj(),
                 async move {
-                    let Ok((pagination, snapshot)) = worker.await else { return; };
+                    let result = worker.await;
                     let imp = obj.imp();
                     if !imp.active.get() || imp.generation.get() != generation { return; }
                     imp.task.take();
+                    let (pagination, snapshot) = match result {
+                        Ok(result) => result,
+                        Err(error) => {
+                            imp.failed.set(true);
+                            imp.reached_start.set(false);
+                            imp.set_loading(false);
+                            imp.update_status();
+                            error!("Room history cache task failed: {error}");
+                            return;
+                        }
+                    };
                     imp.failed.set(pagination.is_err() || snapshot.is_err());
                     match pagination {
                         Ok(reached_start) => imp.reached_start.set(reached_start && !imp.failed.get()),
@@ -364,7 +462,7 @@ mod imp {
         #[template_callback]
         fn activate_result(&self, position: u32) {
             if let Some(value) = self.model().item(position).and_downcast::<glib::BoxedAnyObject>() {
-                self.jump(value.borrow::<SearchMessage>().event.event_id.clone());
+                self.jump(value.borrow::<SearchResult>().message.event_id.clone());
             }
         }
 

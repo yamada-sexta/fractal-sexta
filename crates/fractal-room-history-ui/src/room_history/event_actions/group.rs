@@ -82,7 +82,7 @@ pub trait EventActionsGroup: ObjectSubclass {
                     .build(),
             ]);
 
-            if room.is_joined() {
+            if room.is_joined() && event.timeline().is_live() {
                 action_group.add_action_entries([
                     // Report the event.
                     gio::ActionEntry::builder("report")
@@ -101,12 +101,14 @@ pub trait EventActionsGroup: ObjectSubclass {
         } else {
             let state = event.state();
 
-            if matches!(
-                state,
-                MessageState::Sending
-                    | MessageState::RecoverableError
-                    | MessageState::PermanentError
-            ) {
+            if event.timeline().is_live()
+                && matches!(
+                    state,
+                    MessageState::Sending
+                        | MessageState::RecoverableError
+                        | MessageState::PermanentError
+                )
+            {
                 // Cancel the event.
                 action_group.add_action_entries([gio::ActionEntry::builder("cancel-send")
                     .activate(clone!(
@@ -125,13 +127,6 @@ pub trait EventActionsGroup: ObjectSubclass {
         self.add_message_like_actions(&action_group, &room, &event);
         self.add_state_actions(&action_group, &room, &event);
 
-        if !event.timeline().is_live() {
-            for name in ["remove", "toggle-reaction", "show-reactions-chooser", "reply", "edit", "cancel-send", "report", "revoke-invite"] {
-                if let Some(action) = action_group.lookup_action(name).and_downcast::<gio::SimpleAction>() {
-                    action.set_enabled(false);
-                }
-            }
-        }
         Some(action_group)
     }
 
@@ -166,6 +161,7 @@ pub trait EventActionsGroup: ObjectSubclass {
 
         // Redact/remove the event.
         if has_event_id
+            && event.timeline().is_live()
             && ((is_from_own_user && permissions.can_redact_own())
                 || permissions.can_redact_other())
         {
@@ -288,7 +284,11 @@ pub trait EventActionsGroup: ObjectSubclass {
                     .build()]);
 
                 // Edit message.
-                if has_event_id && is_from_own_user && permissions.can_send_message() {
+                if has_event_id
+                    && is_from_own_user
+                    && permissions.can_send_message()
+                    && event.timeline().is_live()
+                {
                     action_group.add_action_entries([gio::ActionEntry::builder("edit")
                         .activate(clone!(
                             #[weak(rename_to = imp)]
@@ -429,6 +429,7 @@ pub trait EventActionsGroup: ObjectSubclass {
 
         // Revoke invite.
         if membership_change == MembershipChange::Invited
+            && event.timeline().is_live()
             && target_user.membership() == Membership::Invite
             && permissions.can_do_to_user(target_user.user_id(), PowerLevelUserAction::Kick)
         {
