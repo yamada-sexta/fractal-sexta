@@ -110,6 +110,7 @@ crates/fractal-app/src/session_view/room_history/message_row/visual_media.blp
 crates/fractal-app/src/session_view/room_history/message_toolbar/attachment_dialog.blp
 crates/fractal-app/src/session_view/room_history/message_toolbar/mod.blp
 crates/fractal-app/src/session_view/room_history/mod.blp
+crates/fractal-app/src/session_view/room_history/search.blp
 crates/fractal-app/src/session_view/room_history/state/creation.blp
 crates/fractal-app/src/session_view/room_history/title.blp
 crates/fractal-app/src/session_view/sidebar/mod.blp
@@ -170,6 +171,7 @@ crates/fractal-room-history-ui/src/room_history/message_toolbar/completion/compl
 crates/fractal-room-history-ui/src/room_history/message_toolbar/mod.rs
 crates/fractal-room-history-ui/src/room_history/mod.rs
 crates/fractal-room-history-ui/src/room_history/read_receipts_list/mod.rs
+crates/fractal-room-history-ui/src/room_history/search.rs
 crates/fractal-room-history-ui/src/room_history/state/content.rs
 crates/fractal-room-history-ui/src/room_history/state/creation.rs
 crates/fractal-room-history-ui/src/room_history/state/group_row.rs

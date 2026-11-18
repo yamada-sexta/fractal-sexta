@@ -1228,6 +1228,7 @@ dependencies = [
  "gettext-rs",
  "gtk4",
  "indexmap",
+ "linkify",
  "matrix-sdk",
  "matrix-sdk-store-encryption",
  "matrix-sdk-ui",
@@ -1374,6 +1375,7 @@ dependencies = [
  "ruma",
  "secular",
  "sourceview5",
+ "tokio",
  "tracing",
 ]
 

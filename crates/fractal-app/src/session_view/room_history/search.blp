@@ -1,0 +1,102 @@
+using Gtk 4.0;
+using Adw 1;
+
+template $RoomSearchDialog: Adw.Dialog {
+  title: _("Search Room History");
+  content-width: 640;
+  content-height: 720;
+
+  Adw.ToolbarView {
+    [top]
+    Adw.HeaderBar {}
+
+    [top]
+    Gtk.Box {
+      orientation: vertical;
+      spacing: 12;
+      margin-start: 12;
+      margin-end: 12;
+      margin-bottom: 12;
+
+      Gtk.SearchEntry query {
+        placeholder-text: _("Search messages and filenames");
+        search-delay: 250;
+        search-changed => $search_changed() swapped;
+      }
+    }
+
+    content: Gtk.Box {
+      orientation: vertical;
+      spacing: 12;
+
+      Gtk.ScrolledWindow {
+        hscrollbar-policy: never;
+        max-content-height: 280;
+        propagate-natural-height: true;
+
+        Gtk.Box {
+          orientation: vertical;
+          spacing: 6;
+          margin-start: 12;
+          margin-end: 12;
+
+          Gtk.ListBox {
+            selection-mode: none;
+            styles ["boxed-list"]
+
+            Adw.EntryRow sender {
+              title: _("Sender (name or @user:server)");
+              changed => $sender_changed() swapped;
+            }
+          }
+
+          Gtk.ListBox sender_suggestions {
+            selection-mode: none;
+            visible: false;
+            styles ["boxed-list"]
+          }
+
+          Adw.ExpanderRow filters {
+            title: _("Filters");
+            subtitle: _("Match any included kind; hide excluded kinds");
+            expanded: true;
+          }
+        }
+      }
+
+      Gtk.Label status {
+        wrap: true;
+        xalign: 0;
+        margin-start: 12;
+        margin-end: 12;
+      }
+
+      Gtk.ScrolledWindow {
+        hscrollbar-policy: never;
+        vexpand: true;
+        Gtk.ListView results {
+          single-click-activate: false;
+          activate => $activate_result() swapped;
+          styles ["navigation-sidebar"]
+        }
+      }
+
+      Gtk.Box {
+        spacing: 12;
+        margin-start: 12;
+        margin-end: 12;
+        margin-bottom: 12;
+        halign: center;
+
+        Gtk.Button refresh {
+          label: _("Search Cache Again");
+          clicked => $reload_cache() swapped;
+        }
+        Gtk.Button load_older {
+          label: _("Load Older");
+          clicked => $load_older() swapped;
+        }
+      }
+    };
+  }
+}

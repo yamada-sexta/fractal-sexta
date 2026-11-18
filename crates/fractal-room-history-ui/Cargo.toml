@@ -27,6 +27,7 @@ ruma.workspace = true
 secular.workspace = true
 sourceview.workspace = true
 tracing.workspace = true
+tokio.workspace = true
 
 [lints]
 workspace = true

@@ -22,6 +22,7 @@ mod member_timestamp;
 mod message_row;
 mod message_toolbar;
 mod read_receipts_list;
+mod search;
 mod state;
 mod title;
 mod typing_row;
@@ -37,6 +38,7 @@ use self::{
     message_row::MessageRow,
     message_toolbar::MessageToolbar,
     read_receipts_list::ReadReceiptsList,
+    search::RoomSearchDialog,
     state::{StateGroupRow, StateRow},
     title::RoomHistoryTitle,
     typing_row::TypingRow,
@@ -80,6 +82,15 @@ mod imp {
         room_title: TemplateChild<RoomHistoryTitle>,
         #[template_child]
         room_menu: TemplateChild<gtk::MenuButton>,
+        #[template_child]
+        context_banner: TemplateChild<adw::Banner>,
+        #[template_child]
+        context_controls: TemplateChild<gtk::Box>,
+        #[template_child]
+        context_newer: TemplateChild<gtk::Button>,
+        search_dialog: RefCell<Option<RoomSearchDialog>>,
+        live_timeline: RefCell<Option<Timeline>>,
+        context_target: RefCell<Option<OwnedEventId>>,
         #[template_child]
         pending_knocks_banner: TemplateChild<adw::Banner>,
         #[template_child]
@@ -160,6 +171,10 @@ mod imp {
             });
             klass.install_action_async("room-history.forget", None, |obj, _, _| async move {
                 obj.imp().forget().await;
+            });
+
+            klass.install_action("room-history.search", None, |obj, _, _| {
+                obj.imp().open_search();
             });
 
             klass.install_action("room-history.details", None, |obj, _, _| {
@@ -328,6 +343,7 @@ mod imp {
         }
 
         fn dispose(&self) {
+            if let Some(dialog) = self.search_dialog.take() { dialog.force_close(); }
             self.disconnect_all();
 
             if let Some(handler) = self.window_active_handler.take()
@@ -465,6 +481,7 @@ mod imp {
                 #[upgrade_or]
                 false,
                 move |_, value, _, _| {
+                    if !imp.timeline.obj().is_some_and(|timeline| timeline.is_live()) { return false; }
                     match value.get::<gio::File>() {
                         Ok(file) => {
                             spawn!(async move {
@@ -527,8 +544,27 @@ mod imp {
                 return;
             }
 
+            if self.room() != timeline.as_ref().map(Timeline::room) {
+                if let Some(dialog) = self.search_dialog.take() { dialog.force_close(); }
+                self.live_timeline.take();
+                self.context_target.take();
+            }
+            let is_live = timeline.as_ref().is_none_or(Timeline::is_live);
+            if is_live {
+                self.live_timeline.take();
+                self.context_target.take();
+                self.message_toolbar.set_timeline(timeline.as_ref());
+            }
+            self.message_toolbar.set_visible(is_live);
+            self.context_banner.set_revealed(!is_live);
+            self.context_controls.set_visible(!is_live);
+            self.context_newer.set_sensitive(false);
+            for action in ["room-history.reply", "room-history.edit", "room-history.edit-latest-message"] {
+                self.obj().action_set_enabled(action, is_live);
+            }
             self.disconnect_all();
             self.set_is_auto_scrolling(false);
+            self.set_sticky(is_live);
             if let Some(source_id) = self.scroll_timeout.take() {
                 source_id.remove();
             }
@@ -620,7 +656,17 @@ mod imp {
                         // This is mostly to make sure that we load events if the timeline was not
                         // initialized when the room was opened.
                         if timeline.state() == LoadingState::Ready {
-                            imp.load_more_events_if_needed();
+                            if !timeline.is_live() { imp.context_newer.set_sensitive(true); }
+                            if let Some(id) = imp.context_target.borrow().clone() {
+                                glib::idle_add_local_once(clone!(#[weak] imp, #[weak] timeline, move || {
+                                    if imp.timeline.obj().as_ref() != Some(&timeline) { return; }
+                                    imp.context_target.take();
+                                    imp.set_sticky(false);
+                                    imp.scroll_to_event(&TimelineEventItemId::EventId(id));
+                                }));
+                            } else {
+                                imp.load_more_events_if_needed();
+                            }
                         }
                     }
                 ));
@@ -633,7 +679,7 @@ mod imp {
                     .set_model(Some(timeline.items().upcast()));
 
                 self.trigger_read_receipts_update();
-                self.scroll_down();
+                if is_live { self.scroll_down(); }
             } else {
                 self.history_model().set_model(None);
             }
@@ -867,6 +913,7 @@ mod imp {
         /// Load more events in the history if needed.
         fn load_more_events_if_needed(&self) {
             if self.obj().is_mapped()
+                && self.context_target.borrow().is_none()
                 && !self.is_auto_scrolling.get()
                 && self.needs_more_events_at_the_start()
             {
@@ -925,7 +972,64 @@ mod imp {
         /// This should only be used to try to fix timeline loading errors.
         #[template_callback]
         fn load_more_events(&self) {
+            if let Some(timeline) = self.timeline.obj()
+                && !timeline.is_live() && timeline.state() == LoadingState::Error
+                && let Some(id) = self.context_target.borrow().clone() {
+                self.obj().set_timeline(Some(Timeline::for_event(&timeline.room(), &id)));
+                return;
+            }
             self.load_more_events_at_the_start(false);
+        }
+
+        #[template_callback]
+        async fn load_newer_context(&self) {
+            let Some(timeline) = self.timeline.obj() else { return; };
+            if timeline.is_live() || timeline.state() != LoadingState::Ready
+                || !self.context_newer.is_sensitive() { return; }
+            self.context_newer.set_sensitive(false);
+            let matrix_timeline = timeline.matrix_timeline();
+            let result = crate::spawn_tokio!(async move { matrix_timeline.paginate_forwards(20).await }).await;
+            if self.timeline.obj().as_ref() != Some(&timeline) { return; }
+            match result {
+                Ok(Ok(reached_end)) => self.context_newer.set_sensitive(!reached_end),
+                _ => {
+                    self.context_newer.set_sensitive(true);
+                    toast!(self.obj(), gettext("Could not load newer messages. Try again."));
+                }
+            }
+        }
+
+        #[template_callback]
+        fn return_to_latest(&self) {
+            let live = self.live_timeline.take();
+            if let Some(live) = live { self.obj().set_timeline(Some(live)); }
+        }
+
+        fn open_search(&self) {
+            let Some(room) = self.room() else { return; };
+            if self.search_dialog.borrow().is_none() {
+                let dialog = RoomSearchDialog::new(&room, clone!(#[weak(rename_to = obj)] self.obj(), move |id| {
+                    obj.imp().jump_to_message(id);
+                }));
+                self.search_dialog.replace(Some(dialog));
+            }
+            if let Some(source) = self.scroll_timeout.take() { source.remove(); }
+            if let Some(source) = self.read_timeout.take() { source.remove(); }
+            let dialog = self.search_dialog.borrow().as_ref().unwrap().clone();
+            dialog.open(&*self.obj());
+        }
+
+        fn jump_to_message(&self, id: OwnedEventId) {
+            let Some(timeline) = self.timeline.obj() else { return; };
+            let key = TimelineEventItemId::EventId(id.clone());
+            if timeline.find_event_position(&key).is_some() {
+                self.set_sticky(false);
+                self.scroll_to_event(&key);
+                return;
+            }
+            if timeline.is_live() { self.live_timeline.replace(Some(timeline.clone())); }
+            self.context_target.replace(Some(id.clone()));
+            self.obj().set_timeline(Some(Timeline::for_event(&timeline.room(), &id)));
         }
 
         /// Scroll to the event with the given identifier.
@@ -954,7 +1058,9 @@ mod imp {
         /// It means that the ancestor window is active and the room history is
         /// mapped.
         fn is_active(&self) -> bool {
-            self.parent_window()
+            self.timeline.obj().is_some_and(|timeline| timeline.is_live())
+                && self.search_dialog.borrow().as_ref().is_none_or(|dialog| !dialog.is_search_active())
+                && self.parent_window()
                 .is_some_and(|window| window.is_active())
                 && self.obj().is_mapped()
         }

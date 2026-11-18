@@ -133,6 +133,7 @@ session_view/room_history/message_toolbar/attachment_dialog.blp
 session_view/room_history/message_toolbar/completion/completion_popover.blp
 session_view/room_history/message_toolbar/mod.blp
 session_view/room_history/mod.blp
+session_view/room_history/search.blp
 session_view/room_history/read_receipts_list/mod.blp
 session_view/room_history/read_receipts_list/read_receipts_popover.blp
 session_view/room_history/state/creation.blp

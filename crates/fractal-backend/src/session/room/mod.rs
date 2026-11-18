@@ -39,6 +39,7 @@ mod join_rule;
 mod member;
 mod member_list;
 mod permissions;
+mod search;
 mod timeline;
 mod typing_list;
 
@@ -50,6 +51,7 @@ pub use self::{
     member::{Member, Membership},
     member_list::*,
     permissions::*,
+    search::*,
     timeline::*,
     typing_list::TypingList,
 };
