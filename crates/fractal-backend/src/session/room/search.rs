@@ -172,7 +172,8 @@ impl RoomSearchSnapshot {
                                 .entry(replacement.event_id.clone())
                                 .or_default()
                                 .push(message);
-                        } else {
+                        } else if is_supported_message(&message.content.msgtype) {
+                            // The SDK filters originals before applying edits.
                             messages.insert(id.clone(), message);
                         }
                     }
