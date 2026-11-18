@@ -125,6 +125,13 @@ pub trait EventActionsGroup: ObjectSubclass {
         self.add_message_like_actions(&action_group, &room, &event);
         self.add_state_actions(&action_group, &room, &event);
 
+        if !event.timeline().is_live() {
+            for name in ["remove", "toggle-reaction", "show-reactions-chooser", "reply", "edit", "cancel-send", "report", "revoke-invite"] {
+                if let Some(action) = action_group.lookup_action(name).and_downcast::<gio::SimpleAction>() {
+                    action.set_enabled(false);
+                }
+            }
+        }
         Some(action_group)
     }
 

@@ -765,6 +765,9 @@ impl Event {
 
     /// Whether this event can be replied to.
     pub fn can_be_replied_to(&self) -> bool {
+        if !self.timeline().is_live() {
+            return false;
+        }
         let item = self.item();
 
         // We only allow to reply to messages (but not stickers).
@@ -783,6 +786,9 @@ impl Event {
 
     /// Whether this event can be reacted to.
     pub fn can_be_reacted_to(&self) -> bool {
+        if !self.timeline().is_live() {
+            return false;
+        }
         // We only allow to react to messages (but not stickers).
         if !self.item().content().is_message() {
             return false;

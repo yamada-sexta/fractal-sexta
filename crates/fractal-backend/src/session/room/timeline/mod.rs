@@ -11,7 +11,7 @@ use matrix_sdk_ui::{
     eyeball_im::VectorDiff,
     timeline::{
         RoomExt, Timeline as SdkTimeline, TimelineEventItemId, TimelineItem as SdkTimelineItem,
-        default_event_filter,
+        default_event_filter, TimelineFocus, TimelineEventFocusThreadMode,
     },
 };
 use ruma::{
@@ -69,6 +69,8 @@ mod imp {
         /// The room containing this timeline.
         #[property(get, set = Self::set_room, construct_only)]
         room: OnceCell<Room>,
+        /// Event to browse in a read-only context timeline.
+        pub(super) focus_event: RefCell<Option<OwnedEventId>>,
         /// The underlying SDK timeline.
         matrix_timeline: OnceCell<Arc<SdkTimeline>>,
         /// Items added at the start of the timeline.
@@ -190,9 +192,19 @@ mod imp {
                 }
             };
             let matrix_room = room.matrix_room().clone();
+            let focus = self.focus_event.borrow().as_ref().map(|id| TimelineFocus::Event {
+                target: id.clone(),
+                num_context_events: 20,
+                thread_mode: TimelineEventFocusThreadMode::Automatic { hide_threaded_events: false },
+            });
             let handle = spawn_tokio!(async move {
-                matrix_room
-                    .timeline_builder()
+                let builder = matrix_room.timeline_builder();
+                let builder = if let Some(focus) = focus {
+                    builder.with_focus(focus)
+                } else {
+                    builder
+                };
+                builder
                     .event_filter(filter)
                     .add_failed_to_parse(false)
                     .build()
@@ -203,6 +215,7 @@ mod imp {
                 Ok(timeline) => timeline,
                 Err(error) => {
                     error!("Could not create timeline: {error}");
+                    self.set_state(LoadingState::Error);
                     return;
                 }
             };
@@ -245,7 +258,9 @@ mod imp {
                 .set(diff_handle.abort_handle())
                 .expect("handle should be uninitialized");
 
-            self.watch_read_receipts().await;
+            if self.obj().is_live() {
+                self.watch_read_receipts().await;
+            }
 
             self.set_state(LoadingState::Ready);
         }
@@ -624,7 +639,8 @@ mod imp {
             // We do not want to load twice at the same time, and it's useless to try to
             // load more history before the timeline is ready or if we have
             // reached the start of the timeline.
-            self.state.get() != LoadingState::Initial
+            self.matrix_timeline.get().is_some()
+                && self.state.get() != LoadingState::Initial
                 && !self.is_loading_start.get()
                 && !self.has_reached_start.get()
         }
@@ -678,6 +694,9 @@ mod imp {
 
         /// Add the typing row to the timeline, if it isn't present already.
         fn add_typing_row(&self) {
+            if !self.obj().is_live() {
+                return;
+            }
             self.end_items().set_is_hidden(false);
         }
 
@@ -919,6 +938,23 @@ impl Timeline {
         ));
 
         obj
+    }
+
+    /// Construct a read-only timeline around an older message.
+    pub fn for_event(room: &Room, event_id: &ruma::EventId) -> Self {
+        let obj: Self = glib::Object::builder().property("room", room).build();
+        obj.imp().focus_event.replace(Some(event_id.to_owned()));
+        spawn!(clone!(
+            #[weak]
+            obj,
+            async move { obj.imp().init_matrix_timeline().await; }
+        ));
+        obj
+    }
+
+    /// Whether this is the normal live conversation.
+    pub fn is_live(&self) -> bool {
+        self.imp().focus_event.borrow().is_none()
     }
 
     /// The underlying SDK timeline.

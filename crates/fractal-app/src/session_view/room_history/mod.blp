@@ -56,6 +56,13 @@ template $ContentRoomHistory: Adw.Bin {
       }
 
       [end]
+      Gtk.Button {
+        icon-name: "system-search-symbolic";
+        tooltip-text: _("Search Room History");
+        action-name: "room-history.search";
+      }
+
+      [end]
       Gtk.MenuButton room_menu {
         valign: center;
         icon-name: "menu-secondary-symbolic";
@@ -67,6 +74,24 @@ template $ContentRoomHistory: Adw.Bin {
 
     content: Gtk.Box {
       orientation: vertical;
+
+      Adw.Banner context_banner {
+        title: _("Browsing Message Context");
+        button-label: _("Return to Latest");
+        button-clicked => $return_to_latest() swapped;
+      }
+
+      Gtk.Box context_controls {
+        visible: false;
+        halign: center;
+        margin-top: 6;
+        margin-bottom: 6;
+
+        Gtk.Button context_newer {
+          label: _("Load Newer Context");
+          clicked => $load_newer_context() swapped;
+        }
+      }
 
       Adw.Banner {
         title: _("Call room - other clients may not show messages you send in this room.");
@@ -186,7 +211,6 @@ template $ContentRoomHistory: Adw.Bin {
         tightening-threshold: 550;
 
         $MessageToolbar message_toolbar {
-          timeline: bind template.timeline;
         }
       }
     };
