@@ -345,8 +345,11 @@ mod imp {
                     imp.task.take();
                     imp.failed.set(pagination.is_err() || snapshot.is_err());
                     match pagination {
-                        Ok(reached_start) => imp.reached_start.set(reached_start),
-                        Err(error) => error!("Could not paginate room search history: {error}"),
+                        Ok(reached_start) => imp.reached_start.set(reached_start && !imp.failed.get()),
+                        Err(error) => {
+                            imp.reached_start.set(false);
+                            error!("Could not paginate room search history: {error}");
+                        }
                     }
                     match snapshot {
                         Ok(snapshot) => { imp.snapshot.replace(Arc::new(snapshot)); }
